@@ -57,6 +57,20 @@ _sysz_header() {
 
 export -f _sysz_header
 
+_sysz_keys() {
+  printf '%s\n' \
+    'Keybindings:' \
+    '  type          Filter the list. Space separates terms.' \
+    '  TAB           Toggle selection.' \
+    "  ctrl-v        Toggle 'cat' the unit in the preview window." \
+    '  ctrl-s        Select states to match. Selection is reset.' \
+    '  ctrl-r        Run daemon-reload. Selection is reset.' \
+    '  ctrl-p        History previous.' \
+    '  ctrl-n        History next.' \
+    '  ?             Show keybindings.' \
+    '  esc, ctrl-c   Quit.'
+}
+
 _sysz_help() {
   cat <<EOF
 Usage: $PROG [OPTS...] [CMD] [-- ARGS...]
@@ -167,14 +181,10 @@ _sysz_stream() {
     "$@"
   )
 
-  if [[ $mode = loaded ]]; then
-    systemctl list-units "${args[@]}"
-  else
-    {
-      systemctl list-units "${args[@]}" | sed -e 's/^/L /'
-      systemctl list-unit-files "${args[@]}" | sed -e 's/^/F /'
-    }
-  fi | awk -v mgr="[$manager]" '
+  {
+    systemctl list-units "${args[@]}" | sed -e 's/^/L /'
+    [[ $mode = unloaded ]] && systemctl list-unit-files "${args[@]}" | sed -e 's/^/F /'
+  } | awk -v mgr="[$manager]" '
     {
       u = $2
       if ($1 == "L") {
@@ -371,20 +381,9 @@ while :; do
       --history="$SYSZ_HISTORY" \
       --prompt="Units: " \
       --header 'loading...' \
-      --bind "load,resize:transform-header:'${BASH_SOURCE[0]}' _sysz_header \"\$FZF_COLUMNS\"" \
-      --bind "?:preview(echo 'Keybindings:
-  type          Filter the list. Space separates terms.
-  TAB           Toggle selection.
-  ctrl-v        Toggle 'cat' the unit in the preview window.
-  ctrl-s        Select states to match. Selection is reset.
-  ctrl-r        Run daemon-reload. Selection is reset.
-  ctrl-p        History previous.
-  ctrl-n        History next.
-  ?             Show keybindings.
-  esc, ctrl-c   Quit.')" \
-      --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] &&
-              echo \"change-prompt(CAT )+preview('${BASH_SOURCE[0]}' _fzf_preview {} cat)\" ||
-              echo \"change-prompt(Units: )+preview('${BASH_SOURCE[0]}' _fzf_preview {})\"" \
+      --bind "load,resize:transform-header:'${BASH_SOURCE[0]}' _sysz_header \\\$FZF_COLUMNS" \
+      --bind "?:preview('${BASH_SOURCE[0]}' _sysz_keys)" \
+      --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] && echo 'change-prompt(CAT )+preview(${BASH_SOURCE[0]} _fzf_preview {} cat)' || echo 'change-prompt(Units: )+preview(${BASH_SOURCE[0]} _fzf_preview {})'" \
       --bind 'focus:change-prompt(Units: )' \
       --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
       --preview-window=right:50% |
