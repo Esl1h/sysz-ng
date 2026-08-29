@@ -95,6 +95,7 @@ _sysz_install() {
     die 'what came back does not look like a shell script'
   grep -q '^SYSZ_VERSION=' "$tmp" || die 'the downloaded script looks incomplete'
   bash -n "$tmp" || die 'the downloaded script does not parse'
+  [[ $(wc -c <"$tmp") -ge 5000 ]] || die 'the downloaded script looks truncated'
 
   local version
   version=$(sed -n 's/^SYSZ_VERSION=//p' "$tmp")

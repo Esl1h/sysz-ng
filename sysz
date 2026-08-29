@@ -75,6 +75,8 @@ _sysz_keys() {
 
 _sysz_help() {
   cat <<EOF
+A utility for using systemctl interactively via fzf.
+
 Usage: $PROG [OPTS...] [CMD] [-- ARGS...]
 
 OPTS:
@@ -96,8 +98,14 @@ Environment:
 CMD:
 EOF
   for _entry in "${CMD_ALIASES[@]}"; do
-    IFS=':' read -ra _a <<<"$_entry"
-    printf '  %-22s systemctl %s <unit>\n' "${_a[*]// /, }" "${_a[-1]}"
+    local _aliases _cmd
+    IFS=':' read -ra _aliases <<<"$_entry"
+    _cmd=${_aliases[-1]}
+    printf -v _line '%s' "${_aliases[0]}"
+    for ((i = 1; i < ${#_aliases[@]}; i++)); do
+      _line+=", ${_aliases[$i]}"
+    done
+    printf '  %-22s systemctl %s <unit>\n' "$_line" "$_cmd"
   done
   cat <<EOF
 
@@ -144,16 +152,16 @@ _sysz_journalctl() {
 
 _sysz_manager() {
   case ${1%% *} in
-  '[user]')
-    echo --user
-    ;;
-  '[system]')
-    echo --system
-    ;;
-  *)
-    echo "ERROR: Unknown manager: $1" >&2
-    exit 1
-    ;;
+    '[user]')
+      echo --user
+      ;;
+    '[system]')
+      echo --system
+      ;;
+    *)
+      echo "ERROR: Unknown manager: $1" >&2
+      exit 1
+      ;;
   esac
 }
 
@@ -183,6 +191,79 @@ _sysz_show() {
   LOAD_STATE=$(sed -n '2p' <<<"$out")
   UNIT_FILE_STATE=$(sed -n '3p' <<<"$out")
   CAN_RELOAD=$(sed -n '4p' <<<"$out")
+}
+
+# Compatibility wrappers for the test suite.
+_sysz_colorize() {
+  awk '
+    / active /    {printf "\033[0;32m%s\033[0m\n", $1; next}
+    / failed /    {printf "\033[0;31m%s\033[0m\n", $1; next}
+    / not-found / {printf "\033[1;33m%s\033[0m\n", $1; next}
+    {print $1}
+  '
+}
+
+_sysz_sort() {
+  awk '
+    {
+      mgr = $1
+      unit_colored = $NF
+      unit = unit_colored
+      gsub(/\033[\[(][0-9;]*[@-n]/, "", unit)
+
+      if (unit ~ /\.service$/)     n = (mgr == "[system]") ? 1 : 0
+      else if (unit ~ /\.timer$/)  n = (mgr == "[system]") ? 3 : 2
+      else if (unit ~ /\.socket$/) n = (mgr == "[system]") ? 5 : 4
+      else if (mgr == "[user]")    n = 6
+      else                         n = 7
+
+      type = unit
+      sub(/^.*\./, "", type)
+      undashed = unit
+      gsub(/-/, "", undashed)
+
+      print n type undashed, mgr, unit_colored
+    }
+  ' | sort -bifu | cut -d' ' -f2-
+}
+
+_sysz_list() {
+  local mode=$1
+  shift
+  local -a args=(
+    --all
+    --no-legend
+    --full
+    --plain
+    --no-pager
+    "${STATES[@]}"
+    "$@"
+  )
+  if [[ $mode = loaded ]]; then
+    systemctl "${SYSZ_REMOTE[@]}" list-units "${args[@]}" | _sysz_colorize
+  else
+    {
+      systemctl "${SYSZ_REMOTE[@]}" list-units "${args[@]}" | sed -e 's/^/L /'
+      systemctl "${SYSZ_REMOTE[@]}" list-unit-files "${args[@]}" | sed -e 's/^/F /'
+    } | awk '
+      $1 == "L" {loaded[$2] = 1; next}
+      !($2 in loaded) && !seen[$2]++ {sub(/^F /, ""); print}
+    ' | _sysz_colorize
+  fi
+}
+
+_sysz_preview_pct() {
+  if (($1 >= 160)); then
+    echo 70
+  elif (($1 >= 100)); then
+    echo 60
+  else
+    echo 50
+  fi
+}
+
+_sysz_header_width() {
+  echo $(($1 * (100 - $2) / 100 - 5))
 }
 
 _sysz_cache_dir() {
@@ -285,48 +366,48 @@ fi
 
 while [[ -n $1 ]]; do
   case $1 in
-  -u | --user)
-    MANAGERS=(user)
-    shift
-    ;;
-  --sys | --system)
-    MANAGERS=(system)
-    shift
-    ;;
-  -s | --state)
-    STATES+=("--state=$2")
-    shift 2
-    ;;
-  --state=*)
-    STATES+=("$1")
-    shift
-    ;;
-  -v | --version)
-    echo "$PROG" $SYSZ_VERSION
-    exit 0
-    ;;
-  -V | --verbose)
-    VERBOSE=true
-    shift
-    ;;
-  --no-cache)
-    NO_CACHE=true
-    shift
-    ;;
-  -H | --host)
-    SYSZ_REMOTE+=("--host=$2")
-    shift 2
-    ;;
-  -M | --machine)
-    SYSZ_REMOTE+=("--machine=$2")
-    shift 2
-    ;;
-  -h | --help)
-    _sysz_help
-    ;;
-  *)
-    break
-    ;;
+    -u | --user)
+      MANAGERS=(user)
+      shift
+      ;;
+    --sys | --system)
+      MANAGERS=(system)
+      shift
+      ;;
+    -s | --state)
+      STATES+=("--state=$2")
+      shift 2
+      ;;
+    --state=*)
+      STATES+=("$1")
+      shift
+      ;;
+    -v | --version)
+      echo "$PROG" $SYSZ_VERSION
+      exit 0
+      ;;
+    -V | --verbose)
+      VERBOSE=true
+      shift
+      ;;
+    --no-cache)
+      NO_CACHE=true
+      shift
+      ;;
+    -H | --host)
+      SYSZ_REMOTE+=("--host=$2")
+      shift 2
+      ;;
+    -M | --machine)
+      SYSZ_REMOTE+=("--machine=$2")
+      shift 2
+      ;;
+    -h | --help)
+      _sysz_help
+      ;;
+    *)
+      break
+      ;;
   esac
 done
 
@@ -343,33 +424,33 @@ done
 
 while [[ -n $1 ]]; do
   case $1 in
-  _fzf_preview)
-    shift
-    _fzf_preview "$@"
-    ;;
-  _fzf_cat)
-    shift
-    _fzf_preview "$@" cat
-    ;;
-  _sysz_header)
-    shift
-    _sysz_header "$@"
-    ;;
-  h | help)
-    _sysz_help
-    ;;
-  --)
-    shift
-    ARGS=("$@")
-    break
-    ;;
-  -*)
-    echo "ERROR: Unknown option: $1" >&2
-    exit 1
-    ;;
-  *)
-    CMD=${CMD_MAP[$1]:-$1}
-    ;;
+    _fzf_preview)
+      shift
+      _fzf_preview "$@"
+      ;;
+    _fzf_cat)
+      shift
+      _fzf_preview "$@" cat
+      ;;
+    _sysz_header)
+      shift
+      _sysz_header "$@"
+      ;;
+    h | help)
+      _sysz_help
+      ;;
+    --)
+      shift
+      ARGS=("$@")
+      break
+      ;;
+    -*)
+      echo "ERROR: Unknown option: $1" >&2
+      exit 1
+      ;;
+    *)
+      CMD=${CMD_MAP[$1]:-$1}
+      ;;
   esac
   shift
 done
@@ -454,14 +535,14 @@ while :; do
   UNITS=("${PICKS[@]:1}")
 
   case $KEY in
-  ctrl-r)
-    _sysz_daemon_reload
-    continue
-    ;;
-  ctrl-s)
-    _sysz_states
-    continue
-    ;;
+    ctrl-r)
+      _sysz_daemon_reload
+      continue
+      ;;
+    ctrl-s)
+      _sysz_states
+      continue
+      ;;
   esac
 
   if [[ ${#UNITS[@]} -eq 0 ]]; then
@@ -548,36 +629,36 @@ for PICK in "${UNITS[@]}"; do
   for CMD in "${CMDS[@]}"; do
     _cmd=${CMD%% *}
     case $_cmd in
-    journal | follow)
-      [[ $_cmd = follow ]] && _flag=-xef || _flag=-xe
-      _sysz_journalctl "$MANAGER" "$UNIT" "$_flag" "${ARGS[@]}" || {
-        _code=$?
-        ((_code > CODE)) && CODE=$_code
-      }
-      ;;
-    status)
-      # shellcheck disable=2086
-      # Intentional word splitting: $CMD is a single word set by this script.
-      SYSTEMD_COLORS=1 systemctl "${SYSZ_REMOTE[@]}" "$MANAGER" $CMD --no-pager "${ARGS[@]}" -- "$UNIT" || {
-        _code=$?
-        ((_code > CODE)) && CODE=$_code
-      }
-      ;;
-    cat | show)
-      _sysz_systemctl "$MANAGER" "$CMD" "${ARGS[@]}" -- "$UNIT" || {
-        _code=$?
-        ((_code > CODE)) && CODE=$_code
-      }
-      ;;
-    *)
-      # shellcheck disable=2086
-      # Intentional word splitting: $CMD is a single word set by this script.
-      _sysz_systemctl "$MANAGER" $CMD "${ARGS[@]}" -- "$UNIT" || {
-        _code=$?
-        ((_code > CODE)) && CODE=$_code
-      }
-      SYSTEMD_COLORS=1 systemctl "${SYSZ_REMOTE[@]}" "$MANAGER" status --no-pager -- "$UNIT"
-      ;;
+      journal | follow)
+        [[ $_cmd = follow ]] && _flag=-xef || _flag=-xe
+        _sysz_journalctl "$MANAGER" "$UNIT" "$_flag" "${ARGS[@]}" || {
+          _code=$?
+          ((_code > CODE)) && CODE=$_code
+        }
+        ;;
+      status)
+        # shellcheck disable=2086
+        # Intentional word splitting: $CMD is a single word set by this script.
+        SYSTEMD_COLORS=1 systemctl "${SYSZ_REMOTE[@]}" "$MANAGER" $CMD --no-pager "${ARGS[@]}" -- "$UNIT" || {
+          _code=$?
+          ((_code > CODE)) && CODE=$_code
+        }
+        ;;
+      cat | show)
+        _sysz_systemctl "$MANAGER" "$CMD" "${ARGS[@]}" -- "$UNIT" || {
+          _code=$?
+          ((_code > CODE)) && CODE=$_code
+        }
+        ;;
+      *)
+        # shellcheck disable=2086
+        # Intentional word splitting: $CMD is a single word set by this script.
+        _sysz_systemctl "$MANAGER" $CMD "${ARGS[@]}" -- "$UNIT" || {
+          _code=$?
+          ((_code > CODE)) && CODE=$_code
+        }
+        SYSTEMD_COLORS=1 systemctl "${SYSZ_REMOTE[@]}" "$MANAGER" status --no-pager -- "$UNIT"
+        ;;
     esac
   done
 done
