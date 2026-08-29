@@ -117,6 +117,13 @@ _sysz_run() {
   "$@" || return $?
 }
 
+# Wrapper around fzf that injects SYSZ_FZF_OPTS before explicit flags.
+# Intentional word splitting: SYSZ_FZF_OPTS may contain multiple fzf flags.
+_sysz_fzf() {
+  # shellcheck disable=SC2086
+  fzf ${SYSZ_FZF_OPTS} "$@"
+}
+
 _sysz_systemctl() {
   if [[ $EUID -ne 0 && $1 = --system ]]; then
     _sysz_run "$SYSZ_SUDO" systemctl "${SYSZ_REMOTE[@]}" "$@"
@@ -137,16 +144,16 @@ _sysz_journalctl() {
 
 _sysz_manager() {
   case ${1%% *} in
-    '[user]')
-      echo --user
-      ;;
-    '[system]')
-      echo --system
-      ;;
-    *)
-      echo "ERROR: Unknown manager: $1" >&2
-      exit 1
-      ;;
+  '[user]')
+    echo --user
+    ;;
+  '[system]')
+    echo --system
+    ;;
+  *)
+    echo "ERROR: Unknown manager: $1" >&2
+    exit 1
+    ;;
   esac
 }
 
@@ -278,48 +285,48 @@ fi
 
 while [[ -n $1 ]]; do
   case $1 in
-    -u | --user)
-      MANAGERS=(user)
-      shift
-      ;;
-    --sys | --system)
-      MANAGERS=(system)
-      shift
-      ;;
-    -s | --state)
-      STATES+=("--state=$2")
-      shift 2
-      ;;
-    --state=*)
-      STATES+=("$1")
-      shift
-      ;;
-    -v | --version)
-      echo "$PROG" $SYSZ_VERSION
-      exit 0
-      ;;
-    -V | --verbose)
-      VERBOSE=true
-      shift
-      ;;
-    --no-cache)
-      NO_CACHE=true
-      shift
-      ;;
-    -H | --host)
-      SYSZ_REMOTE+=("--host=$2")
-      shift 2
-      ;;
-    -M | --machine)
-      SYSZ_REMOTE+=("--machine=$2")
-      shift 2
-      ;;
-    -h | --help)
-      _sysz_help
-      ;;
-    *)
-      break
-      ;;
+  -u | --user)
+    MANAGERS=(user)
+    shift
+    ;;
+  --sys | --system)
+    MANAGERS=(system)
+    shift
+    ;;
+  -s | --state)
+    STATES+=("--state=$2")
+    shift 2
+    ;;
+  --state=*)
+    STATES+=("$1")
+    shift
+    ;;
+  -v | --version)
+    echo "$PROG" $SYSZ_VERSION
+    exit 0
+    ;;
+  -V | --verbose)
+    VERBOSE=true
+    shift
+    ;;
+  --no-cache)
+    NO_CACHE=true
+    shift
+    ;;
+  -H | --host)
+    SYSZ_REMOTE+=("--host=$2")
+    shift 2
+    ;;
+  -M | --machine)
+    SYSZ_REMOTE+=("--machine=$2")
+    shift 2
+    ;;
+  -h | --help)
+    _sysz_help
+    ;;
+  *)
+    break
+    ;;
   esac
 done
 
@@ -336,33 +343,33 @@ done
 
 while [[ -n $1 ]]; do
   case $1 in
-    _fzf_preview)
-      shift
-      _fzf_preview "$@"
-      ;;
-    _fzf_cat)
-      shift
-      _fzf_preview "$@" cat
-      ;;
-    _sysz_header)
-      shift
-      _sysz_header "$@"
-      ;;
-    h | help)
-      _sysz_help
-      ;;
-    --)
-      shift
-      ARGS=("$@")
-      break
-      ;;
-    -*)
-      echo "ERROR: Unknown option: $1" >&2
-      exit 1
-      ;;
-    *)
-      CMD=${CMD_MAP[$1]:-$1}
-      ;;
+  _fzf_preview)
+    shift
+    _fzf_preview "$@"
+    ;;
+  _fzf_cat)
+    shift
+    _fzf_preview "$@" cat
+    ;;
+  _sysz_header)
+    shift
+    _sysz_header "$@"
+    ;;
+  h | help)
+    _sysz_help
+    ;;
+  --)
+    shift
+    ARGS=("$@")
+    break
+    ;;
+  -*)
+    echo "ERROR: Unknown option: $1" >&2
+    exit 1
+    ;;
+  *)
+    CMD=${CMD_MAP[$1]:-$1}
+    ;;
   esac
   shift
 done
@@ -375,13 +382,10 @@ _sysz_daemon_reload() {
     [[ $EUID -ne 0 ]] && echo '[system] daemon-reload'
     echo '[user] daemon-reload'
   } |
-    fzf
-  # shellcheck disable=SC2086
-  # Intentional: SYSZ_FZF_OPTS may contain multiple fzf flags.
-  ${SYSZ_FZF_OPTS} \
-    --multi \
-    --no-info \
-    --prompt="Reload: " |
+    _sysz_fzf \
+      --multi \
+      --no-info \
+      --prompt="Reload: " |
     readarray -t RELOADS || exit $?
 
   for RELOAD in "${RELOADS[@]}"; do
@@ -395,11 +399,9 @@ _sysz_states() {
     grep -v 'ing' |
     sort -u |
     grep -v '^$' |
-    fzf
-  # shellcheck disable=SC2086
-  ${SYSZ_FZF_OPTS} \
-    --multi \
-    --prompt="States: " |
+    _sysz_fzf \
+      --multi \
+      --prompt="States: " |
     readarray -t PICKED_STATES || exit $?
 
   [[ ${#PICKED_STATES[@]} -gt 0 ]] && STATES=()
@@ -434,19 +436,17 @@ while :; do
     done
   } |
     sort -bifu | cut -d' ' -f2- |
-    fzf
-  # shellcheck disable=SC2086
-  ${SYSZ_FZF_OPTS} \
-    --multi \
-    --ansi \
-    --expect=ctrl-r,ctrl-s \
-    --history="$SYSZ_HISTORY" \
-    --prompt="Units: " \
-    --header="$(_sysz_header 60)" \
-    --bind "?:preview('${BASH_SOURCE[0]}' _sysz_keys)" \
-    --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] && echo 'change-prompt(CAT )+preview(${BASH_SOURCE[0]} _fzf_preview {} cat)' || echo 'change-prompt(Units: )+preview(${BASH_SOURCE[0]} _fzf_preview {})'" \
-    --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
-    --preview-window=right:50% |
+    _sysz_fzf \
+      --multi \
+      --ansi \
+      --expect=ctrl-r,ctrl-s \
+      --history="$SYSZ_HISTORY" \
+      --prompt="Units: " \
+      --header="$(_sysz_header 60)" \
+      --bind "?:preview('${BASH_SOURCE[0]}' _sysz_keys)" \
+      --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] && echo 'change-prompt(CAT )+preview(${BASH_SOURCE[0]} _fzf_preview {} cat)' || echo 'change-prompt(Units: )+preview(${BASH_SOURCE[0]} _fzf_preview {})'" \
+      --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
+      --preview-window=right:50% |
     readarray -t PICKS
 
   KEY=${PICKS[0]}
@@ -454,14 +454,14 @@ while :; do
   UNITS=("${PICKS[@]:1}")
 
   case $KEY in
-    ctrl-r)
-      _sysz_daemon_reload
-      continue
-      ;;
-    ctrl-s)
-      _sysz_states
-      continue
-      ;;
+  ctrl-r)
+    _sysz_daemon_reload
+    continue
+    ;;
+  ctrl-s)
+    _sysz_states
+    continue
+    ;;
   esac
 
   if [[ ${#UNITS[@]} -eq 0 ]]; then
@@ -489,15 +489,12 @@ else
 
     if [[ $UNIT = *@.* ]]; then
       TEMPLATE=${UNIT##* }
-      # shellcheck disable=SC2086
-      # Intentional: SYSZ_FZF_OPTS may contain multiple fzf flags.
       PARAM=$(
         systemctl "${SYSZ_REMOTE[@]}" "$(_sysz_manager "$UNIT")" list-units --all --no-legend --no-pager --plain "$TEMPLATE@*" |
           awk '{print $1}' |
           sed "s/^${TEMPLATE}@//" |
           sort -u |
-          fzf \
-            ${SYSZ_FZF_OPTS} \
+          _sysz_fzf \
             --print-query \
             --prompt="$TEMPLATE parameter: " \
             --header="esc new  tab select" |
@@ -515,9 +512,7 @@ else
     PREVIEW_CMD="'${BASH_SOURCE[0]}' _fzf_preview '$UNIT'"
   fi
 
-  # shellcheck disable=SC2086
-  fzf \
-    ${SYSZ_FZF_OPTS} \
+  _sysz_fzf \
     --multi \
     --ansi \
     --no-info \
@@ -553,36 +548,36 @@ for PICK in "${UNITS[@]}"; do
   for CMD in "${CMDS[@]}"; do
     _cmd=${CMD%% *}
     case $_cmd in
-      journal | follow)
-        [[ $_cmd = follow ]] && _flag=-xef || _flag=-xe
-        _sysz_journalctl "$MANAGER" "$UNIT" "$_flag" "${ARGS[@]}" || {
-          _code=$?
-          ((_code > CODE)) && CODE=$_code
-        }
-        ;;
-      status)
-        # shellcheck disable=2086
-        # Intentional word splitting: $CMD is a single word set by this script.
-        SYSTEMD_COLORS=1 systemctl "${SYSZ_REMOTE[@]}" "$MANAGER" $CMD --no-pager "${ARGS[@]}" -- "$UNIT" || {
-          _code=$?
-          ((_code > CODE)) && CODE=$_code
-        }
-        ;;
-      cat | show)
-        _sysz_systemctl "$MANAGER" "$CMD" "${ARGS[@]}" -- "$UNIT" || {
-          _code=$?
-          ((_code > CODE)) && CODE=$_code
-        }
-        ;;
-      *)
-        # shellcheck disable=2086
-        # Intentional word splitting: $CMD is a single word set by this script.
-        _sysz_systemctl "$MANAGER" $CMD "${ARGS[@]}" -- "$UNIT" || {
-          _code=$?
-          ((_code > CODE)) && CODE=$_code
-        }
-        SYSTEMD_COLORS=1 systemctl "${SYSZ_REMOTE[@]}" "$MANAGER" status --no-pager -- "$UNIT"
-        ;;
+    journal | follow)
+      [[ $_cmd = follow ]] && _flag=-xef || _flag=-xe
+      _sysz_journalctl "$MANAGER" "$UNIT" "$_flag" "${ARGS[@]}" || {
+        _code=$?
+        ((_code > CODE)) && CODE=$_code
+      }
+      ;;
+    status)
+      # shellcheck disable=2086
+      # Intentional word splitting: $CMD is a single word set by this script.
+      SYSTEMD_COLORS=1 systemctl "${SYSZ_REMOTE[@]}" "$MANAGER" $CMD --no-pager "${ARGS[@]}" -- "$UNIT" || {
+        _code=$?
+        ((_code > CODE)) && CODE=$_code
+      }
+      ;;
+    cat | show)
+      _sysz_systemctl "$MANAGER" "$CMD" "${ARGS[@]}" -- "$UNIT" || {
+        _code=$?
+        ((_code > CODE)) && CODE=$_code
+      }
+      ;;
+    *)
+      # shellcheck disable=2086
+      # Intentional word splitting: $CMD is a single word set by this script.
+      _sysz_systemctl "$MANAGER" $CMD "${ARGS[@]}" -- "$UNIT" || {
+        _code=$?
+        ((_code > CODE)) && CODE=$_code
+      }
+      SYSTEMD_COLORS=1 systemctl "${SYSZ_REMOTE[@]}" "$MANAGER" status --no-pager -- "$UNIT"
+      ;;
     esac
   done
 done
