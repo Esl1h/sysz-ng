@@ -152,16 +152,16 @@ _sysz_journalctl() {
 
 _sysz_manager() {
   case ${1%% *} in
-    '[user]')
-      echo --user
-      ;;
-    '[system]')
-      echo --system
-      ;;
-    *)
-      echo "ERROR: Unknown manager: $1" >&2
-      exit 1
-      ;;
+  '[user]')
+    echo --user
+    ;;
+  '[system]')
+    echo --system
+    ;;
+  *)
+    echo "ERROR: Unknown manager: $1" >&2
+    exit 1
+    ;;
   esac
 }
 
@@ -366,48 +366,48 @@ fi
 
 while [[ -n $1 ]]; do
   case $1 in
-    -u | --user)
-      MANAGERS=(user)
-      shift
-      ;;
-    --sys | --system)
-      MANAGERS=(system)
-      shift
-      ;;
-    -s | --state)
-      STATES+=("--state=$2")
-      shift 2
-      ;;
-    --state=*)
-      STATES+=("$1")
-      shift
-      ;;
-    -v | --version)
-      echo "$PROG" $SYSZ_VERSION
-      exit 0
-      ;;
-    -V | --verbose)
-      VERBOSE=true
-      shift
-      ;;
-    --no-cache)
-      NO_CACHE=true
-      shift
-      ;;
-    -H | --host)
-      SYSZ_REMOTE+=("--host=$2")
-      shift 2
-      ;;
-    -M | --machine)
-      SYSZ_REMOTE+=("--machine=$2")
-      shift 2
-      ;;
-    -h | --help)
-      _sysz_help
-      ;;
-    *)
-      break
-      ;;
+  -u | --user)
+    MANAGERS=(user)
+    shift
+    ;;
+  --sys | --system)
+    MANAGERS=(system)
+    shift
+    ;;
+  -s | --state)
+    STATES+=("--state=$2")
+    shift 2
+    ;;
+  --state=*)
+    STATES+=("$1")
+    shift
+    ;;
+  -v | --version)
+    echo "$PROG" $SYSZ_VERSION
+    exit 0
+    ;;
+  -V | --verbose)
+    VERBOSE=true
+    shift
+    ;;
+  --no-cache)
+    NO_CACHE=true
+    shift
+    ;;
+  -H | --host)
+    SYSZ_REMOTE+=("--host=$2")
+    shift 2
+    ;;
+  -M | --machine)
+    SYSZ_REMOTE+=("--machine=$2")
+    shift 2
+    ;;
+  -h | --help)
+    _sysz_help
+    ;;
+  *)
+    break
+    ;;
   esac
 done
 
@@ -424,33 +424,33 @@ done
 
 while [[ -n $1 ]]; do
   case $1 in
-    _fzf_preview)
-      shift
-      _fzf_preview "$@"
-      ;;
-    _fzf_cat)
-      shift
-      _fzf_preview "$@" cat
-      ;;
-    _sysz_header)
-      shift
-      _sysz_header "$@"
-      ;;
-    h | help)
-      _sysz_help
-      ;;
-    --)
-      shift
-      ARGS=("$@")
-      break
-      ;;
-    -*)
-      echo "ERROR: Unknown option: $1" >&2
-      exit 1
-      ;;
-    *)
-      CMD=${CMD_MAP[$1]:-$1}
-      ;;
+  _fzf_preview)
+    shift
+    _fzf_preview "$@"
+    ;;
+  _fzf_cat)
+    shift
+    _fzf_preview "$@" cat
+    ;;
+  _sysz_header)
+    shift
+    _sysz_header "$@"
+    ;;
+  h | help)
+    _sysz_help
+    ;;
+  --)
+    shift
+    ARGS=("$@")
+    break
+    ;;
+  -*)
+    echo "ERROR: Unknown option: $1" >&2
+    exit 1
+    ;;
+  *)
+    CMD=${CMD_MAP[$1]:-$1}
+    ;;
   esac
   shift
 done
@@ -535,14 +535,14 @@ while :; do
   UNITS=("${PICKS[@]:1}")
 
   case $KEY in
-    ctrl-r)
-      _sysz_daemon_reload
-      continue
-      ;;
-    ctrl-s)
-      _sysz_states
-      continue
-      ;;
+  ctrl-r)
+    _sysz_daemon_reload
+    continue
+    ;;
+  ctrl-s)
+    _sysz_states
+    continue
+    ;;
   esac
 
   if [[ ${#UNITS[@]} -eq 0 ]]; then
@@ -629,36 +629,36 @@ for PICK in "${UNITS[@]}"; do
   for CMD in "${CMDS[@]}"; do
     _cmd=${CMD%% *}
     case $_cmd in
-      journal | follow)
-        [[ $_cmd = follow ]] && _flag=-xef || _flag=-xe
-        _sysz_journalctl "$MANAGER" "$UNIT" "$_flag" "${ARGS[@]}" || {
-          _code=$?
-          ((_code > CODE)) && CODE=$_code
-        }
-        ;;
-      status)
-        # shellcheck disable=2086
-        # Intentional word splitting: $CMD is a single word set by this script.
-        SYSTEMD_COLORS=1 systemctl "${SYSZ_REMOTE[@]}" "$MANAGER" $CMD --no-pager "${ARGS[@]}" -- "$UNIT" || {
-          _code=$?
-          ((_code > CODE)) && CODE=$_code
-        }
-        ;;
-      cat | show)
-        _sysz_systemctl "$MANAGER" "$CMD" "${ARGS[@]}" -- "$UNIT" || {
-          _code=$?
-          ((_code > CODE)) && CODE=$_code
-        }
-        ;;
-      *)
-        # shellcheck disable=2086
-        # Intentional word splitting: $CMD is a single word set by this script.
-        _sysz_systemctl "$MANAGER" $CMD "${ARGS[@]}" -- "$UNIT" || {
-          _code=$?
-          ((_code > CODE)) && CODE=$_code
-        }
-        SYSTEMD_COLORS=1 systemctl "${SYSZ_REMOTE[@]}" "$MANAGER" status --no-pager -- "$UNIT"
-        ;;
+    journal | follow)
+      [[ $_cmd = follow ]] && _flag=-xef || _flag=-xe
+      _sysz_journalctl "$MANAGER" "$UNIT" "$_flag" "${ARGS[@]}" || {
+        _code=$?
+        ((_code > CODE)) && CODE=$_code
+      }
+      ;;
+    status)
+      # shellcheck disable=2086
+      # Intentional word splitting: $CMD is a single word set by this script.
+      SYSTEMD_COLORS=1 systemctl "${SYSZ_REMOTE[@]}" "$MANAGER" $CMD --no-pager "${ARGS[@]}" -- "$UNIT" || {
+        _code=$?
+        ((_code > CODE)) && CODE=$_code
+      }
+      ;;
+    cat | show)
+      _sysz_systemctl "$MANAGER" "$CMD" "${ARGS[@]}" -- "$UNIT" || {
+        _code=$?
+        ((_code > CODE)) && CODE=$_code
+      }
+      ;;
+    *)
+      # shellcheck disable=2086
+      # Intentional word splitting: $CMD is a single word set by this script.
+      _sysz_systemctl "$MANAGER" $CMD "${ARGS[@]}" -- "$UNIT" || {
+        _code=$?
+        ((_code > CODE)) && CODE=$_code
+      }
+      SYSTEMD_COLORS=1 systemctl "${SYSZ_REMOTE[@]}" "$MANAGER" status --no-pager -- "$UNIT"
+      ;;
     esac
   done
 done
