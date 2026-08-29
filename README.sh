@@ -4,7 +4,7 @@ BLOCK='```'
 # $XDG_CACHE_HOME is meant to reach the README as those literal
 # characters, so the home directory of whoever generated it does not.
 # shellcheck disable=SC2016
-USAGE=$(./sysz -h | sed -e 's:/home/[a-z]\+/.cache:$XDG_CACHE_HOME:')
+USAGE=$(./sysz-ng -h | sed -e 's:/home/[a-z]\+/.cache:$XDG_CACHE_HOME:')
 
 cat <<EOF >README.md
 # [sysz-ng](https://github.com/Esl1h/sysz-ng)
@@ -94,7 +94,7 @@ Piping a script into a shell is worth being careful about. This one is
 
 ${BLOCK}sh
 mkdir -p ~/.local/bin
-curl -fsSL -o ~/.local/bin/sysz-ng https://raw.githubusercontent.com/Esl1h/sysz-ng/main/sysz
+curl -fsSL -o ~/.local/bin/sysz-ng https://raw.githubusercontent.com/Esl1h/sysz-ng/main/sysz-ng
 chmod +x ~/.local/bin/sysz-ng
 ${BLOCK}
 

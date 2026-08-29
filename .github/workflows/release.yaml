@@ -21,8 +21,8 @@ jobs:
           set -euo pipefail
           tag=${GITHUB_REF_NAME}
           file=$(cat VERSION)
-          script=$(sed -n 's/^SYSZ_VERSION=//p' sysz)
-          echo "tag=$tag VERSION=$file sysz=$script"
+          script=$(sed -n 's/^SYSZ_VERSION=//p' sysz-ng)
+          echo "tag=$tag VERSION=$file sysz-ng=$script"
           [ "$tag" = "$file" ] || { echo "VERSION does not match the tag"; exit 1; }
           [ "$tag" = "$script" ] || { echo "SYSZ_VERSION does not match the tag"; exit 1; }
 
@@ -61,5 +61,5 @@ jobs:
       - name: Publish
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          files: sysz
+          files: sysz-ng
           body_path: notes.md

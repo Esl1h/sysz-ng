@@ -85,7 +85,7 @@ Piping a script into a shell is worth being careful about. This one is
 
 ```sh
 mkdir -p ~/.local/bin
-curl -fsSL -o ~/.local/bin/sysz-ng https://raw.githubusercontent.com/Esl1h/sysz-ng/main/sysz
+curl -fsSL -o ~/.local/bin/sysz-ng https://raw.githubusercontent.com/Esl1h/sysz-ng/main/sysz-ng
 chmod +x ~/.local/bin/sysz-ng
 ```
 
@@ -108,7 +108,7 @@ make test
 ```text
 A utility for using systemctl interactively via fzf.
 
-Usage: sysz [OPTS...] [CMD] [-- ARGS...]
+Usage: sysz-ng [OPTS...] [CMD] [-- ARGS...]
 
 OPTS:
   -u, --user               Only show --user units
@@ -149,12 +149,12 @@ CMD:
 History:  $XDG_CACHE_HOME/sysz/history
 
 Examples:
-  sysz                        Admin-owned units (default)
-  sysz -a                     All units, no filters
-  sysz -u -t service,timer    User services and timers
-  sysz --failed               Failed units only
-  sysz --sys -s active stop   Stop an active system unit
-  sysz s -- -n100             Show status with 100 log lines
+  sysz-ng                     Admin-owned units (default)
+  sysz-ng -a                  All units, no filters
+  sysz-ng -u -t service,timer User services and timers
+  sysz-ng --failed            Failed units only
+  sysz-ng --sys -s active stop Stop an active system unit
+  sysz-ng s -- -n100          Show status with 100 log lines
 ```
 
 # Alternatives

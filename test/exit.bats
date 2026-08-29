@@ -7,7 +7,7 @@
 # the command and the status call return.
 
 setup() {
-  SYSZ="${BATS_TEST_DIRNAME}/../sysz"
+  SYSZ="${BATS_TEST_DIRNAME}/../sysz-ng"
   BIN="$BATS_TEST_TMPDIR/bin"
   mkdir -p "$BIN"
 

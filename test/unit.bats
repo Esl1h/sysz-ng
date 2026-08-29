@@ -5,7 +5,7 @@
 # systemd, and nothing here touches unit state.
 
 setup() {
-  SYSZ="${BATS_TEST_DIRNAME}/../sysz"
+  SYSZ="${BATS_TEST_DIRNAME}/../sysz-ng"
   # shellcheck disable=SC1090
   source "$SYSZ"
   ESC=$'\033'

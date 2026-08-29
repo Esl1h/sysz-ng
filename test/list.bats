@@ -7,7 +7,7 @@
 # own, and the second has to add only what the first did not already show.
 
 setup() {
-  SYSZ="${BATS_TEST_DIRNAME}/../sysz"
+  SYSZ="${BATS_TEST_DIRNAME}/../sysz-ng"
   ESC=$'\033'
 
   # A fake systemctl answering both listing calls from fixtures.

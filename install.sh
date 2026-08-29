@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-#   curl -fsSL https://raw.githubusercontent.com/Esl1h/sysz/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Esl1h/sysz-ng/main/install.sh | bash
 #
 # Environment:
 #   SYSZ_INSTALL_DIR  where to put the script  (default ~/.local/bin)
@@ -17,9 +17,9 @@ _sysz_install() {
   local repo=${SYSZ_REPO:-Esl1h/sysz-ng}
   local ref=${SYSZ_REF:-main}
   local dir=${SYSZ_INSTALL_DIR:-${XDG_BIN_HOME:-$HOME/.local/bin}}
-  local url=${SYSZ_URL:-"https://raw.githubusercontent.com/${repo}/${ref}/sysz"}
+  local url=${SYSZ_URL:-"https://raw.githubusercontent.com/${repo}/${ref}/sysz-ng"}
   local min_fzf=0.46.0
-  local target=$dir/sysz
+  local target=$dir/sysz-ng
   local tmp
 
   local red='' green='' yellow='' plain=''
@@ -35,7 +35,7 @@ _sysz_install() {
     exit 1
   }
 
-  # Same comparison sysz itself uses, so the two agree on what is too old.
+  # Same comparison sysz-ng itself uses, so the two agree on what is too old.
   older_than() {
     [[ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" != "$2" ]]
   }
@@ -74,7 +74,7 @@ _sysz_install() {
   fi
 
   command -v systemctl >/dev/null ||
-    warn 'systemctl was not found, so sysz will not have anything to talk to'
+    warn 'systemctl was not found, so sysz-ng will not have anything to talk to'
 
   # Download
 
@@ -114,9 +114,9 @@ _sysz_install() {
   install -m755 "$tmp" "$target" || die "could not write $target"
 
   if [[ -n $previous ]]; then
-    ok "sysz $version installed to $target, replacing $previous"
+    ok "sysz-ng $version installed to $target, replacing $previous"
   else
-    ok "sysz $version installed to $target"
+    ok "sysz-ng $version installed to $target"
   fi
 
   # Tell them if it will not be found
@@ -131,9 +131,9 @@ _sysz_install() {
   esac
 
   local found
-  found=$(command -v sysz 2>/dev/null) || found=''
+  found=$(command -v sysz-ng 2>/dev/null) || found=''
   if [[ -n $found && $found != "$target" ]]; then
-    warn "another sysz comes first on your PATH: $found"
+    warn "another sysz-ng comes first on your PATH: $found"
   fi
 }
 

@@ -1,4 +1,4 @@
-#compdef sysz
+#compdef sysz-ng
 
 local -a _sysz_cmds _sysz_states
 _sysz_cmds=(
