@@ -5,14 +5,14 @@
 # be installed, but no unit is touched.
 
 setup() {
-  SYSZ="${BATS_TEST_DIRNAME}/../sysz"
+  SYSZ="${BATS_TEST_DIRNAME}/../sysz-ng"
   REPO="${BATS_TEST_DIRNAME}/.."
 }
 
 @test "--version reports the version recorded in VERSION" {
   run "$SYSZ" --version
   [ "$status" -eq 0 ]
-  [ "$output" = "sysz $(cat "$REPO/VERSION")" ]
+  [ "$output" = "sysz-ng $(cat "$REPO/VERSION")" ]
 }
 
 @test "-v is the short form of --version" {

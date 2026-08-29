@@ -1,16 +1,16 @@
-# Maintainer: Joe Hillenbrand (joehillen) <joehillen@gmail.com>
+# Maintainer: Esli Silva <esli@esli.io>
 
-pkgname=sysz
-pkgver=1.4.3
-pkgrel=0
-pkgdesc="fzf terminal UI for systemctl"
+pkgname=sysz-ng
+pkgver=2.1.0
+pkgrel=1
+pkgdesc="fzf terminal UI for systemctl (sysz-ng fork)"
 arch=("any")
-url="https://github.com/joehillen/sysz"
+url="https://github.com/Esl1h/sysz-ng"
 license=("UNLICENSE")
 depends=("bash" "fzf")
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/$pkgver.tar.gz")
-sha256sums=('186a650a1539005749df7b0c186328acc7a18bd7549d1a6279c26044d67ec0ef')
+sha256sums=('SKIP')
 
 package() {
-  install -Dm775 "$srcdir/$pkgname-$pkgver/sysz" "$pkgdir/usr/bin/sysz"
+  install -Dm755 "$srcdir/$pkgname-$pkgver/sysz-ng" "$pkgdir/usr/bin/sysz-ng"
 }

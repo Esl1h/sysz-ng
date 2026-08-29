@@ -30,4 +30,4 @@ _sysz() {
   fi
 }
 
-complete -F _sysz sysz
+complete -F _sysz sysz-ng

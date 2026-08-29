@@ -17,8 +17,8 @@ supply their own.
 ## Before opening a pull request
 
 ```sh
-shellcheck sysz
-shfmt -d sysz
+shellcheck sysz-ng
+shfmt -d sysz-ng
 make test
 ```
 
@@ -29,14 +29,14 @@ Two things are easy to miss:
 
 - `README.md` is generated. Edit `README.sh` and run `./README.sh`, then
   commit both.
-- The help text in `sysz` and the command parser have drifted apart before.
+- The help text in `sysz-ng` and the command parser have drifted apart before.
   If you add a command, add it to both, and there is a test that checks
   they agree.
 
 ## Adding a test
 
 `test/unit.bats` covers the functions the unit list is built from.
-Sourcing `sysz` gives you them without running the tool, so those tests
+Sourcing `sysz-ng` gives you them without running the tool, so those tests
 need neither fzf nor systemd.
 
 `test/list.bats` and `test/exit.bats` fake `systemctl`, and `test/exit.bats`

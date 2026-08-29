@@ -3,16 +3,16 @@ ARCHIVE := sysz-ng-$(VERSION).tar.gz
 .PHONY: install clean release archive test
 .ONESHELL: aur-release
 
-sysz: VERSION
-	sed -i -e "s/^SYSZ_VERSION=.*/SYSZ_VERSION=$(VERSION)/" sysz
+sysz-ng: VERSION
+	sed -i -e "s/^SYSZ_VERSION=.*/SYSZ_VERSION=$(VERSION)/" sysz-ng
 
-$(ARCHIVE): sysz CHANGELOG.md README.md
+$(ARCHIVE): sysz-ng CHANGELOG.md README.md
 	git archive --format=tar.gz -o $(ARCHIVE) --prefix sysz-ng-$(VERSION)/ $(VERSION)
 
 clean:
 	/bin/rm -f README.md
 
-README.md: README.sh sysz VERSION
+README.md: README.sh sysz-ng VERSION
 	./README.sh
 
 archive: $(ARCHIVE)
@@ -31,16 +31,16 @@ aur-release: PKGBUILD
 	git commit -am "Release $(VERSION)"
 	git push origin main
 
-github-release: VERSION sysz CHANGELOG.md README.md
+github-release: VERSION sysz-ng CHANGELOG.md README.md
 	git commit -am 'Release $(VERSION)'
 	git tag $(VERSION)
 	git push origin $(VERSION)
 
-release: clean sysz README.md github-release
+release: clean sysz-ng README.md github-release
 
 
 test:
 	bats test/
 
 install:
-	install -m755 sysz /usr/local/bin/sysz-ng
+	install -m755 sysz-ng /usr/local/bin/sysz-ng
