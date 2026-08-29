@@ -7,11 +7,32 @@ shopt -s extglob
 export SHELL=bash
 
 PROG=$(basename "$0")
-SYSZ_VERSION=2.0.0
+SYSZ_VERSION=2.1.0
 SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
 SYSZ_SUDO=${SYSZ_SUDO:-sudo}
 declare -a STATES
 SYSZ_REMOTE=()
+declare -a TYPES
+
+# Denylist: units that are noise in normal operation.
+# These are generated, transient, or boot-time units that are almost
+# never managed manually. Use --all to disable.
+declare -a SYSZ_DENYLIST=(
+  '*.device'
+  '*.slice'
+  'session-*.scope'
+  'init.scope'
+  'user@*.service'
+  'user-runtime-dir@*.service'
+  'dbus-:*'
+  'dbus-org.*'
+  'systemd-fsck@*'
+  'systemd-backlight@*'
+  'systemd-cryptsetup@*'
+  'blockdev@*.target'
+  'dev-*'
+  'sys-*'
+)
 
 # Fonte unica de verdade: alias -> comando canonical.
 declare -a CMD_ALIASES=(
@@ -67,6 +88,7 @@ _sysz_keys() {
     "  ctrl-v        Toggle 'cat' the unit in the preview window." \
     '  ctrl-s        Select states to match. Selection is reset.' \
     '  ctrl-r        Run daemon-reload. Selection is reset.' \
+    '  ctrl-e        Toggle admin-owned (etc) vs all units.' \
     '  ctrl-p        History previous.' \
     '  ctrl-n        History next.' \
     '  ?             Show keybindings.' \
@@ -83,6 +105,10 @@ OPTS:
   -u, --user               Only show --user units
   --sys, --system          Only show --system units
   -s STATE, --state STATE  Only show units in STATE (repeatable)
+  -t TYPE, --type TYPE     Only show units of TYPE (repeatable)
+  -a, --all                Show all units (disable filters)
+  --failed                 Only show failed units (alias for -s failed)
+  --mine, --etc            Only show units with fragments under /etc
   -H HOST, --host HOST     Connect to remote host
   -M MACHINE, --machine MACHINE  Operate on local container
   --no-cache               Skip list-unit-files cache
@@ -112,8 +138,11 @@ EOF
 History:  $SYSZ_HISTORY
 
 Examples:
-  $PROG -u                      User units
-  $PROG --sys -s active stop    Stop an active system unit
+  $PROG                        Admin-owned units (default)
+  $PROG -a                     All units, no filters
+  $PROG -u -t service,timer    User services and timers
+  $PROG --failed               Failed units only
+  $PROG --sys -s active stop   Stop an active system unit
   $PROG s -- -n100             Show status with 100 log lines
 EOF
 
@@ -266,6 +295,15 @@ _sysz_header_width() {
   echo $(($1 * (100 - $2) / 100 - 5))
 }
 
+# Tier 2: units with a fragment or drop-in under /etc or user config.
+# Cheap: one ls per directory, no D-Bus.
+_sysz_admin_owned() {
+  {
+    ls /etc/systemd/system/ 2>/dev/null || true
+    ls "${XDG_CONFIG_HOME:-$HOME/.config}"/systemd/user/ 2>/dev/null || true
+  } | sed 's/\.d$//' | sort -u
+}
+
 _sysz_cache_dir() {
   echo "${XDG_CACHE_HOME:-$HOME/.cache}/sysz"
 }
@@ -344,10 +382,37 @@ _sysz_stream() {
         sub(/^.*\./, "", type)
         undashed = u
         gsub(/-/, "", undashed)
-        print n type undashed, mgr, c
+        print n type undashed, u, mgr, c
       }
     }
   '
+}
+
+# Filter the stream output. Reads 4 fields: sort_key plain_unit mgr colored.
+# Applies denylist (unless --all) and mine filter (unless --all).
+_sysz_filter_stream() {
+  local sort_key plain_unit mgr colored
+  while read -r sort_key plain_unit mgr colored; do
+    if [[ $NO_DENY != true ]]; then
+      for glob in "${SYSZ_DENYLIST[@]}"; do
+        # shellcheck disable=SC2053
+        # Intentional glob matching: SYSZ_DENYLIST entries are globs.
+        [[ $plain_unit == "$glob" ]] && continue 2
+      done
+    fi
+    if [[ $FILTER_MODE = mine ]]; then
+      [[ -z ${ADMIN_UNITS[$plain_unit]} ]] && continue
+    fi
+    printf '%s %s %s\n' "$sort_key" "$mgr" "$colored"
+  done
+}
+
+_sysz_prompt() {
+  case $FILTER_MODE in
+  mine) printf 'Units [etc]: ' ;;
+  all) printf 'Units: ' ;;
+  *) printf 'Units: ' ;;
+  esac
 }
 
 # Sourcing exposes functions without running the tool or requiring fzf.
@@ -394,6 +459,27 @@ while [[ -n $1 ]]; do
     NO_CACHE=true
     shift
     ;;
+  -a | --all)
+    FILTER_MODE=all
+    NO_DENY=true
+    shift
+    ;;
+  -t | --type)
+    TYPES+=("--type=$2")
+    shift 2
+    ;;
+  --type=*)
+    TYPES+=("$1")
+    shift
+    ;;
+  --failed)
+    STATES+=("--state=failed")
+    shift
+    ;;
+  --mine | --etc)
+    FILTER_MODE=mine
+    shift
+    ;;
   -H | --host)
     SYSZ_REMOTE+=("--host=$2")
     shift 2
@@ -421,6 +507,18 @@ for STATE in "${STATES[@]}"; do
     exit 1
   fi
 done
+
+# Default filter mode: mine (admin-owned), falling back to all if too few.
+FILTER_MODE=${FILTER_MODE:-mine}
+if [[ $FILTER_MODE = mine ]]; then
+  declare -A ADMIN_UNITS
+  while IFS= read -r _u; do
+    [[ -n $_u ]] && ADMIN_UNITS[$_u]=1
+  done < <(_sysz_admin_owned)
+  if ((${#ADMIN_UNITS[@]} < 5)); then
+    FILTER_MODE=all
+  fi
+fi
 
 while [[ -n $1 ]]; do
   case $1 in
@@ -512,20 +610,21 @@ declare -a CMDS_TABLE=(
 while :; do
   {
     for MANAGER in "${MANAGERS[@]}"; do
-      _sysz_stream loaded "$MANAGER" "--$MANAGER"
-      _sysz_stream unloaded "$MANAGER" "--$MANAGER"
+      _sysz_stream loaded "$MANAGER" "--$MANAGER" "${TYPES[@]}"
+      _sysz_stream unloaded "$MANAGER" "--$MANAGER" "${TYPES[@]}"
     done
   } |
+    _sysz_filter_stream |
     sort -bifu | cut -d' ' -f2- |
     _sysz_fzf \
       --multi \
       --ansi \
-      --expect=ctrl-r,ctrl-s \
+      --expect=ctrl-r,ctrl-s,ctrl-e \
       --history="$SYSZ_HISTORY" \
-      --prompt="Units: " \
+      --prompt="$(_sysz_prompt)" \
       --header="$(_sysz_header 60)" \
       --bind "?:preview('${BASH_SOURCE[0]}' _sysz_keys)" \
-      --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] && echo 'change-prompt(CAT )+preview(${BASH_SOURCE[0]} _fzf_preview {} cat)' || echo 'change-prompt(Units: )+preview(${BASH_SOURCE[0]} _fzf_preview {})'" \
+      --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] && echo 'change-prompt(CAT )+preview(${BASH_SOURCE[0]} _fzf_preview {} cat)' || echo 'change-prompt($(_sysz_prompt))+preview(${BASH_SOURCE[0]} _fzf_preview {})'" \
       --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
       --preview-window=right:50% |
     readarray -t PICKS
@@ -541,6 +640,19 @@ while :; do
     ;;
   ctrl-s)
     _sysz_states
+    continue
+    ;;
+  ctrl-e)
+    if [[ $FILTER_MODE = mine ]]; then
+      FILTER_MODE=all
+    else
+      FILTER_MODE=mine
+      # Rebuild admin-owned set in case context changed
+      ADMIN_UNITS=()
+      while IFS= read -r _u; do
+        [[ -n $_u ]] && ADMIN_UNITS[$_u]=1
+      done < <(_sysz_admin_owned)
+    fi
     continue
     ;;
   esac

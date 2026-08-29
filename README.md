@@ -2,7 +2,7 @@
 
 A [fzf](https://github.com/junegunn/fzf) terminal UI for systemctl
 
-VERSION: 2.0.0
+VERSION: 2.1.0
 
 > **Hard fork.** This project was originally forked from
 > [joehillen/sysz](https://github.com/joehillen/sysz) but no longer
@@ -25,6 +25,15 @@ VERSION: 2.0.0
 - Reads the journal for a unit, following it if you want.
 - Filters by state with `ctrl-s` or `--state`, and runs `daemon-reload`
   with `ctrl-r`.
+- **Smart filtering** hides generated, transient and boot-time units by
+  default (`.device`, `.slice`, `session-*.scope`, `systemd-fsck@*`, etc).
+  Use `--all` or `ctrl-e` inside the picker to see everything.
+- **Admin-owned mode** (`--mine`, `--etc`) shows only units with fragments
+  or drop-ins under `/etc/systemd` or `~/.config/systemd/user`. This is the
+  default when launching without arguments, so you see what you (or your
+  Ansible/Terraform) actually put on the machine. `ctrl-e` toggles back to
+  the full list.
+- Filter by unit type with `--type` (e.g. `--type service,timer`).
 - Takes several units, states or commands at once with `TAB`.
 - Calls `sudo` (or `SYSZ_SUDO`) only when the unit actually requires it.
 - Short aliases for the systemctl commands, to type less.
@@ -66,7 +75,7 @@ It reads a few variables:
 SYSZ_INSTALL_DIR=/usr/local/bin curl -fsSL .../install.sh | sudo -E bash
 
 # install a particular tag or branch
-SYSZ_REF=2.0.0 curl -fsSL .../install.sh | bash
+SYSZ_REF=2.1.0 curl -fsSL .../install.sh | bash
 ```
 
 Piping a script into a shell is worth being careful about. This one is
@@ -97,12 +106,18 @@ make test
 # Usage
 
 ```text
+A utility for using systemctl interactively via fzf.
+
 Usage: sysz [OPTS...] [CMD] [-- ARGS...]
 
 OPTS:
   -u, --user               Only show --user units
   --sys, --system          Only show --system units
   -s STATE, --state STATE  Only show units in STATE (repeatable)
+  -t TYPE, --type TYPE     Only show units of TYPE (repeatable)
+  -a, --all                Show all units (disable filters)
+  --failed                 Only show failed units (alias for -s failed)
+  --mine, --etc            Only show units with fragments under /etc
   -H HOST, --host HOST     Connect to remote host
   -M MACHINE, --machine MACHINE  Operate on local container
   --no-cache               Skip list-unit-files cache
@@ -118,24 +133,27 @@ Environment:
 CMD:
   start                  systemctl start <unit>
   stop                   systemctl stop <unit>
-  r re restart           systemctl restart <unit>
+  r, re, restart         systemctl restart <unit>
   reload                 systemctl reload <unit>
-  s stat status          systemctl status <unit>
-  en enable              systemctl enable <unit>
-  d dis disable          systemctl disable <unit>
+  s, stat, status        systemctl status <unit>
+  en, enable             systemctl enable <unit>
+  d, dis, disable        systemctl disable <unit>
   mask                   systemctl mask <unit>
   unmask                 systemctl unmask <unit>
-  c cat                  systemctl cat <unit>
-  ed edit                systemctl edit <unit>
+  c, cat                 systemctl cat <unit>
+  ed, edit               systemctl edit <unit>
   show                   systemctl show <unit>
-  j journal              systemctl journal <unit>
-  f follow               systemctl follow <unit>
+  j, journal             systemctl journal <unit>
+  f, follow              systemctl follow <unit>
 
 History:  $XDG_CACHE_HOME/sysz/history
 
 Examples:
-  sysz -u                      User units
-  sysz --sys -s active stop    Stop an active system unit
+  sysz                        Admin-owned units (default)
+  sysz -a                     All units, no filters
+  sysz -u -t service,timer    User services and timers
+  sysz --failed               Failed units only
+  sysz --sys -s active stop   Stop an active system unit
   sysz s -- -n100             Show status with 100 log lines
 ```
 
