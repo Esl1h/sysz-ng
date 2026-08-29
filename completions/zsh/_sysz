@@ -1,0 +1,35 @@
+#compdef sysz
+
+local -a _sysz_cmds _sysz_states
+_sysz_cmds=(
+  'start:systemctl start'
+  'stop:systemctl stop'
+  'restart:systemctl restart'
+  'reload:systemctl reload'
+  'status:systemctl status'
+  'enable:systemctl enable'
+  'disable:systemctl disable'
+  'mask:systemctl mask'
+  'unmask:systemctl unmask'
+  'cat:systemctl cat'
+  'edit:systemctl edit'
+  'show:systemctl show'
+  'journal:journalctl'
+  'follow:journalctl -f'
+)
+
+_sysz_states=(
+  ${(f)"$(systemctl --state=help 2>/dev/null | grep -v ':')"}
+)
+
+_arguments -s \
+  '(-u --user --sys --system)'{-u,--user}'[Only user units]' \
+  '(-u --user --sys --system)'{--sys,--system}'[Only system units]' \
+  '(-s --state)'{-s,--state}'[Filter by state]:state:($_sysz_states)' \
+  '(-H --host)'{-H,--host}'[Remote host]:host:_hosts' \
+  '(-M --machine)'{-M,--machine}'[Local container]:machine:_machines' \
+  '--no-cache[Skip unit-files cache]' \
+  '(-V --verbose)'{-V,--verbose}'[Print commands]' \
+  '(-v --version)'{-v,--version}'[Print version]' \
+  '(-h --help)'{-h,--help}'[Print help]' \
+  '*::cmd:_sysz_cmds'
