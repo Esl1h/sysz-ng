@@ -1,5 +1,5 @@
 VERSION := $(shell cat VERSION)
-ARCHIVE := sysz-$(VERSION).tar.gz
+ARCHIVE := sysz-ng-$(VERSION).tar.gz
 .PHONY: install clean release archive test
 .ONESHELL: aur-release
 
@@ -7,7 +7,7 @@ sysz: VERSION
 	sed -i -e "s/^SYSZ_VERSION=.*/SYSZ_VERSION=$(VERSION)/" sysz
 
 $(ARCHIVE): sysz CHANGELOG.md README.md
-	git archive --format=tar.gz -o $(ARCHIVE) --prefix sysz-$(VERSION)/ $(VERSION)
+	git archive --format=tar.gz -o $(ARCHIVE) --prefix sysz-ng-$(VERSION)/ $(VERSION)
 
 clean:
 	/bin/rm -f README.md
@@ -25,8 +25,8 @@ PKGBUILD: VERSION $(ARCHIVE)
 aur-release: PKGBUILD
 	git commit -am 'Update PKGBUILD'
 	git push origin main
-	cp PKGBUILD ~/src/aur/sysz/PKGBUILD
-	cd ~/src/aur/sysz/
+	cp PKGBUILD ~/src/aur/sysz-ng/PKGBUILD
+	cd ~/src/aur/sysz-ng/
 	makepkg -ci
 	git commit -am "Release $(VERSION)"
 	git push origin main
@@ -43,4 +43,4 @@ test:
 	bats test/
 
 install:
-	install -m755 sysz /usr/local/bin/
+	install -m755 sysz /usr/local/bin/sysz-ng

@@ -14,7 +14,7 @@
 set -euo pipefail
 
 _sysz_install() {
-  local repo=${SYSZ_REPO:-Esl1h/sysz}
+  local repo=${SYSZ_REPO:-Esl1h/sysz-ng}
   local ref=${SYSZ_REF:-main}
   local dir=${SYSZ_INSTALL_DIR:-${XDG_BIN_HOME:-$HOME/.local/bin}}
   local url=${SYSZ_URL:-"https://raw.githubusercontent.com/${repo}/${ref}/sysz"}
