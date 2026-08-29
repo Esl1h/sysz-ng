@@ -1,0 +1,33 @@
+# shellcheck shell=bash
+_sysz() {
+  local cur prev opts cmds states
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  prev="${COMP_WORDS[COMP_CWORD - 1]}"
+
+  opts='-u --user --sys --system -s --state -H --host -M --machine --no-cache -V --verbose -v --version -h --help'
+  cmds='start stop r re restart reload s stat status en enable d dis disable mask unmask c cat ed edit show j journal f follow'
+  states=$(systemctl --state=help 2>/dev/null | grep -v ':')
+
+  case $prev in
+  -s | --state)
+    mapfile -t COMPREPLY < <(compgen -W "$states" -- "$cur")
+    return
+    ;;
+  -H | --host)
+    mapfile -t COMPREPLY < <(compgen -A hostname -- "$cur")
+    return
+    ;;
+  -M | --machine)
+    mapfile -t COMPREPLY < <(compgen -W "$(machinectl list --no-legend 2>/dev/null | awk '{print $1}')" -- "$cur")
+    return
+    ;;
+  esac
+
+  if [[ $cur == -* ]]; then
+    mapfile -t COMPREPLY < <(compgen -W "$opts" -- "$cur")
+  else
+    mapfile -t COMPREPLY < <(compgen -W "$cmds" -- "$cur")
+  fi
+}
+
+complete -F _sysz sysz
