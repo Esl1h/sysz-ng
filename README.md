@@ -2,7 +2,7 @@
 
 A [fzf](https://github.com/junegunn/fzf) terminal UI for systemctl
 
-VERSION: 2.1.0
+VERSION: 2.2.0
 
 > **Hard fork.** This project was originally forked from
 > [joehillen/sysz](https://github.com/joehillen/sysz) but no longer
@@ -34,6 +34,9 @@ VERSION: 2.1.0
   Ansible/Terraform) actually put on the machine. `ctrl-e` toggles back to
   the full list.
 - Filter by unit type with `--type` (e.g. `--type service,timer`).
+- **Curated mode** (`--curated`) hides units that are effectively
+  immutable: `RefuseManualStart/Stop`, `Perpetual`, `Transient`, or
+  generated from `SourcePath`. Use `ctrl-a` inside the picker to toggle.
 - Takes several units, states or commands at once with `TAB`.
 - Calls `sudo` (or `SYSZ_SUDO`) only when the unit actually requires it.
 - Short aliases for the systemctl commands, to type less.
@@ -75,7 +78,7 @@ It reads a few variables:
 SYSZ_INSTALL_DIR=/usr/local/bin curl -fsSL .../install.sh | sudo -E bash
 
 # install a particular tag or branch
-SYSZ_REF=2.1.0 curl -fsSL .../install.sh | bash
+SYSZ_REF=2.2.0 curl -fsSL .../install.sh | bash
 ```
 
 Piping a script into a shell is worth being careful about. This one is
@@ -118,6 +121,7 @@ OPTS:
   -a, --all                Show all units (disable filters)
   --failed                 Only show failed units (alias for -s failed)
   --mine, --etc            Only show units with fragments under /etc
+  --curated                Only show manageable units (hide immutable)
   -H HOST, --host HOST     Connect to remote host
   -M MACHINE, --machine MACHINE  Operate on local container
   --no-cache               Skip list-unit-files cache
@@ -149,12 +153,12 @@ CMD:
 History:  $XDG_CACHE_HOME/sysz/history
 
 Examples:
-  sysz-ng                     Admin-owned units (default)
-  sysz-ng -a                  All units, no filters
-  sysz-ng -u -t service,timer User services and timers
-  sysz-ng --failed            Failed units only
-  sysz-ng --sys -s active stop Stop an active system unit
-  sysz-ng s -- -n100          Show status with 100 log lines
+  sysz-ng                        Admin-owned units (default)
+  sysz-ng -a                     All units, no filters
+  sysz-ng -u -t service,timer    User services and timers
+  sysz-ng --failed               Failed units only
+  sysz-ng --sys -s active stop   Stop an active system unit
+  sysz-ng s -- -n100             Show status with 100 log lines
 ```
 
 # Alternatives

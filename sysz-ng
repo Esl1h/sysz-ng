@@ -7,7 +7,7 @@ shopt -s extglob
 export SHELL=bash
 
 PROG=$(basename "$0")
-SYSZ_VERSION=2.1.0
+SYSZ_VERSION=2.2.0
 SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
 SYSZ_SUDO=${SYSZ_SUDO:-sudo}
 declare -a STATES
@@ -89,6 +89,7 @@ _sysz_keys() {
     '  ctrl-s        Select states to match. Selection is reset.' \
     '  ctrl-r        Run daemon-reload. Selection is reset.' \
     '  ctrl-e        Toggle admin-owned (etc) vs all units.' \
+    '  ctrl-a        Toggle curated mode (hide immutable units).' \
     '  ctrl-p        History previous.' \
     '  ctrl-n        History next.' \
     '  ?             Show keybindings.' \
@@ -109,6 +110,7 @@ OPTS:
   -a, --all                Show all units (disable filters)
   --failed                 Only show failed units (alias for -s failed)
   --mine, --etc            Only show units with fragments under /etc
+  --curated                Only show manageable units (hide immutable)
   -H HOST, --host HOST     Connect to remote host
   -M MACHINE, --machine MACHINE  Operate on local container
   --no-cache               Skip list-unit-files cache
@@ -304,6 +306,36 @@ _sysz_admin_owned() {
   } | sed 's/\.d$//' | sort -u
 }
 
+# Tier 3: units that are actually manageable.
+# Filters out units with properties that mean "do not touch":
+# RefuseManualStart/Stop, Perpetual, Transient, or generated (SourcePath).
+# Input: one unit name per line. Output: only the manageable ones.
+_sysz_curated() {
+  local -a units=()
+  while IFS= read -r u; do
+    [[ -n $u ]] && units+=("$u")
+  done
+  ((${#units[@]} == 0)) && return
+  systemctl "${SYSZ_REMOTE[@]}" show \
+    --property=Id,RefuseManualStart,RefuseManualStop,Perpetual,Transient,SourcePath \
+    -- "${units[@]}" |
+    awk -F= '
+      BEGIN { RS=""; FS="\n" }
+      {
+        id=""; refuse=0; perpetual=0; transient=0; sourcepath=0
+        for (i=1; i<=NF; i++) {
+          if ($i ~ /^Id=/)        id=substr($i, 4)
+          if ($i ~ /^RefuseManualStart=yes/) refuse=1
+          if ($i ~ /^RefuseManualStop=yes/)  refuse=1
+          if ($i ~ /^Perpetual=yes/)         perpetual=1
+          if ($i ~ /^Transient=yes/)         transient=1
+          if ($i ~ /^SourcePath=\//)         sourcepath=1
+        }
+        if (!refuse && !perpetual && !transient && !sourcepath && id != "") print id
+      }
+    '
+}
+
 _sysz_cache_dir() {
   echo "${XDG_CACHE_HOME:-$HOME/.cache}/sysz"
 }
@@ -389,7 +421,7 @@ _sysz_stream() {
 }
 
 # Filter the stream output. Reads 4 fields: sort_key plain_unit mgr colored.
-# Applies denylist (unless --all) and mine filter (unless --all).
+# Applies denylist (unless --all), mine filter, and curated filter.
 _sysz_filter_stream() {
   local sort_key plain_unit mgr colored
   while read -r sort_key plain_unit mgr colored; do
@@ -403,11 +435,18 @@ _sysz_filter_stream() {
     if [[ $FILTER_MODE = mine ]]; then
       [[ -z ${ADMIN_UNITS[$plain_unit]} ]] && continue
     fi
+    if [[ $CURATED = true ]]; then
+      [[ -z ${CURATED_UNITS[$plain_unit]} ]] && continue
+    fi
     printf '%s %s %s\n' "$sort_key" "$mgr" "$colored"
   done
 }
 
 _sysz_prompt() {
+  if [[ $CURATED = true ]]; then
+    printf 'Units [curated]: '
+    return
+  fi
   case $FILTER_MODE in
   mine) printf 'Units [etc]: ' ;;
   all) printf 'Units: ' ;;
@@ -480,6 +519,10 @@ while [[ -n $1 ]]; do
     FILTER_MODE=mine
     shift
     ;;
+  --curated)
+    CURATED=true
+    shift
+    ;;
   -H | --host)
     SYSZ_REMOTE+=("--host=$2")
     shift 2
@@ -518,6 +561,12 @@ if [[ $FILTER_MODE = mine ]]; then
   if ((${#ADMIN_UNITS[@]} < 5)); then
     FILTER_MODE=all
   fi
+fi
+
+# Curated filter: pre-populate the set of manageable units.
+# This is lazy: only built when --curated is active.
+if [[ $CURATED = true ]]; then
+  declare -A CURATED_UNITS
 fi
 
 while [[ -n $1 ]]; do
@@ -608,26 +657,61 @@ declare -a CMDS_TABLE=(
 )
 
 while :; do
-  {
-    for MANAGER in "${MANAGERS[@]}"; do
-      _sysz_stream loaded "$MANAGER" "--$MANAGER" "${TYPES[@]}"
-      _sysz_stream unloaded "$MANAGER" "--$MANAGER" "${TYPES[@]}"
-    done
-  } |
-    _sysz_filter_stream |
-    sort -bifu | cut -d' ' -f2- |
-    _sysz_fzf \
-      --multi \
-      --ansi \
-      --expect=ctrl-r,ctrl-s,ctrl-e \
-      --history="$SYSZ_HISTORY" \
-      --prompt="$(_sysz_prompt)" \
-      --header="$(_sysz_header 60)" \
-      --bind "?:preview('${BASH_SOURCE[0]}' _sysz_keys)" \
-      --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] && echo 'change-prompt(CAT )+preview(${BASH_SOURCE[0]} _fzf_preview {} cat)' || echo 'change-prompt($(_sysz_prompt))+preview(${BASH_SOURCE[0]} _fzf_preview {})'" \
-      --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
-      --preview-window=right:50% |
-    readarray -t PICKS
+  if [[ $CURATED = true ]]; then
+    # Curated mode: two-pass filter.
+    # First pass collects the stream and builds the curated set.
+    # Second pass applies the curated filter before fzf.
+    _stream_tmp=$(mktemp)
+    # shellcheck disable=SC2064
+    trap "rm -f '$_stream_tmp'" EXIT
+    {
+      for MANAGER in "${MANAGERS[@]}"; do
+        _sysz_stream loaded "$MANAGER" "--$MANAGER" "${TYPES[@]}"
+        _sysz_stream unloaded "$MANAGER" "--$MANAGER" "${TYPES[@]}"
+      done
+    } >"$_stream_tmp"
+
+    # Build curated set from the filtered stream.
+    CURATED_UNITS=()
+    while IFS= read -r _u; do
+      [[ -n $_u ]] && CURATED_UNITS[$_u]=1
+    done < <(<"$_stream_tmp" _sysz_filter_stream | sort -bifu | cut -d' ' -f3- | awk '{print $NF}' | sort -u | _sysz_curated)
+
+    <"$_stream_tmp" _sysz_filter_stream | sort -bifu | cut -d' ' -f2- |
+      _sysz_fzf \
+        --multi \
+        --ansi \
+        --expect=ctrl-r,ctrl-s,ctrl-e,ctrl-a \
+        --history="$SYSZ_HISTORY" \
+        --prompt="$(_sysz_prompt)" \
+        --header="$(_sysz_header 60)" \
+        --bind "?:preview('${BASH_SOURCE[0]}' _sysz_keys)" \
+        --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] && echo 'change-prompt(CAT )+preview(${BASH_SOURCE[0]} _fzf_preview {} cat)' || echo 'change-prompt($(_sysz_prompt))+preview(${BASH_SOURCE[0]} _fzf_preview {})'" \
+        --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
+        --preview-window=right:50% |
+      readarray -t PICKS
+  else
+    {
+      for MANAGER in "${MANAGERS[@]}"; do
+        _sysz_stream loaded "$MANAGER" "--$MANAGER" "${TYPES[@]}"
+        _sysz_stream unloaded "$MANAGER" "--$MANAGER" "${TYPES[@]}"
+      done
+    } |
+      _sysz_filter_stream |
+      sort -bifu | cut -d' ' -f2- |
+      _sysz_fzf \
+        --multi \
+        --ansi \
+        --expect=ctrl-r,ctrl-s,ctrl-e,ctrl-a \
+        --history="$SYSZ_HISTORY" \
+        --prompt="$(_sysz_prompt)" \
+        --header="$(_sysz_header 60)" \
+        --bind "?:preview('${BASH_SOURCE[0]}' _sysz_keys)" \
+        --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] && echo 'change-prompt(CAT )+preview(${BASH_SOURCE[0]} _fzf_preview {} cat)' || echo 'change-prompt($(_sysz_prompt))+preview(${BASH_SOURCE[0]} _fzf_preview {})'" \
+        --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
+        --preview-window=right:50% |
+      readarray -t PICKS
+  fi
 
   KEY=${PICKS[0]}
   [[ $VERBOSE = true ]] && echo "KEY: $KEY" >&2
@@ -652,6 +736,14 @@ while :; do
       while IFS= read -r _u; do
         [[ -n $_u ]] && ADMIN_UNITS[$_u]=1
       done < <(_sysz_admin_owned)
+    fi
+    continue
+    ;;
+  ctrl-a)
+    if [[ $CURATED = true ]]; then
+      CURATED=false
+    else
+      CURATED=true
     fi
     continue
     ;;
