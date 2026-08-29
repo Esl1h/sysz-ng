@@ -380,11 +380,9 @@ while :; do
       --expect=ctrl-r,ctrl-s \
       --history="$SYSZ_HISTORY" \
       --prompt="Units: " \
-      --header 'loading...' \
-      --bind "load,resize:transform-header:'${BASH_SOURCE[0]}' _sysz_header \\\$FZF_COLUMNS" \
+      --header="$(_sysz_header 60)" \
       --bind "?:preview('${BASH_SOURCE[0]}' _sysz_keys)" \
       --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] && echo 'change-prompt(CAT )+preview(${BASH_SOURCE[0]} _fzf_preview {} cat)' || echo 'change-prompt(Units: )+preview(${BASH_SOURCE[0]} _fzf_preview {})'" \
-      --bind 'focus:change-prompt(Units: )' \
       --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
       --preview-window=right:50% |
     readarray -t PICKS
