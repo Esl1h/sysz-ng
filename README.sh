@@ -34,6 +34,15 @@ VERSION: $(cat VERSION)
 - Reads the journal for a unit, following it if you want.
 - Filters by state with \`ctrl-s\` or \`--state\`, and runs \`daemon-reload\`
   with \`ctrl-r\`.
+- **Smart filtering** hides generated, transient and boot-time units by
+  default (\`.device\`, \`.slice\`, \`session-*.scope\`, \`systemd-fsck@*\`, etc).
+  Use \`--all\` or \`ctrl-e\` inside the picker to see everything.
+- **Admin-owned mode** (\`--mine\`, \`--etc\`) shows only units with fragments
+  or drop-ins under \`/etc/systemd\` or \`~/.config/systemd/user\`. This is the
+  default when launching without arguments, so you see what you (or your
+  Ansible/Terraform) actually put on the machine. \`ctrl-e\` toggles back to
+  the full list.
+- Filter by unit type with \`--type\` (e.g. \`--type service,timer\`).
 - Takes several units, states or commands at once with \`TAB\`.
 - Calls \`sudo\` (or \`SYSZ_SUDO\`) only when the unit actually requires it.
 - Short aliases for the systemctl commands, to type less.
@@ -75,7 +84,7 @@ ${BLOCK}sh
 SYSZ_INSTALL_DIR=/usr/local/bin curl -fsSL .../install.sh | sudo -E bash
 
 # install a particular tag or branch
-SYSZ_REF=2.0.0 curl -fsSL .../install.sh | bash
+SYSZ_REF=2.1.0 curl -fsSL .../install.sh | bash
 ${BLOCK}
 
 Piping a script into a shell is worth being careful about. This one is

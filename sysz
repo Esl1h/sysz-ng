@@ -409,9 +409,9 @@ _sysz_filter_stream() {
 
 _sysz_prompt() {
   case $FILTER_MODE in
-    mine) printf 'Units [etc]: ' ;;
-    all)  printf 'Units: ' ;;
-    *)    printf 'Units: ' ;;
+  mine) printf 'Units [etc]: ' ;;
+  all) printf 'Units: ' ;;
+  *) printf 'Units: ' ;;
   esac
 }
 
