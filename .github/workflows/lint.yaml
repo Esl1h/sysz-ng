@@ -28,13 +28,11 @@ jobs:
       # "shfmt -f" finds shell files by extension and shebang, so a script
       # added later is picked up without anyone remembering to edit this.
       - name: shellcheck
-        # SC2294 is the eval in _sysz_run, which is how every systemctl call
-        # is dispatched. It predates this fork and is not a drive-by fix.
         run: |
           set -euo pipefail
           mapfile -t files < <(shfmt -f .)
           printf 'checking %s\n' "${files[@]}"
-          shellcheck -e SC2294 "${files[@]}"
+          shellcheck "${files[@]}"
 
       - name: shfmt
         # The .bats files are left out: "@test name {" is not shell syntax,
