@@ -143,7 +143,7 @@ EOF
 
 _sysz_run() {
   [[ $VERBOSE = true ]] && echo '>' "$@" >&2
-  eval "$@" || return $?
+  "$@" || return $?
 }
 
 _sysz_systemctl() {
@@ -185,23 +185,14 @@ _sysz_manager() {
   esac
 }
 
-_fzf_cat() {
-  local MANAGER
-  MANAGER=$(_sysz_manager "$1")
-  local UNIT
-  UNIT=${1##* }
-
-  SYSTEMD_COLORS=1 systemctl "$MANAGER" cat -- "$UNIT"
-}
-
 _fzf_preview() {
   local MANAGER
   MANAGER=$(_sysz_manager "$1")
   local UNIT
   UNIT=${1##* }
 
-  if [[ $UNIT = *@.* ]]; then
-    _fzf_cat "$@"
+  if [[ $2 = cat || $UNIT = *@.* ]]; then
+    SYSTEMD_COLORS=1 systemctl "$MANAGER" cat -- "$UNIT"
   else
     SYSTEMD_COLORS=1 systemctl "$MANAGER" status --no-pager -- "$UNIT"
   fi
@@ -327,7 +318,6 @@ else
   MANAGERS=(user system)
 fi
 
-declare -a STATES
 while [[ -n $1 ]]; do
   case $1 in
   -u | --user)
@@ -382,7 +372,7 @@ while [[ -n $1 ]]; do
     ;;
   _fzf_cat)
     shift
-    _fzf_cat "$@"
+    _fzf_preview "$@" cat
     ;;
   h | help)
     _sysz_help
@@ -431,14 +421,6 @@ done
 
 mkdir -p "$(dirname "$SYSZ_HISTORY")"
 touch "$SYSZ_HISTORY"
-
-function join_by {
-  # https://stackoverflow.com/a/17841619/334632
-  local d=${1-} f=${2-}
-  if shift 2; then
-    printf %s "$f" "${@/#/$d}"
-  fi
-}
 
 _sysz_daemon_reload() {
   (
@@ -513,7 +495,7 @@ while :; do
       --bind "load:change-header($HEADER)" \
       --bind "?:preview(echo '$(_sysz_keys)')" \
       --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] &&
-              echo \"change-prompt(CAT )+preview('${BASH_SOURCE[0]}' _fzf_cat {})\" ||
+              echo \"change-prompt(CAT )+preview('${BASH_SOURCE[0]}' _fzf_preview {} cat)\" ||
               echo \"change-prompt(Units: )+preview('${BASH_SOURCE[0]}' _fzf_preview {})\"" \
       --bind 'focus:change-prompt(Units: )' \
       --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
@@ -650,6 +632,7 @@ for PICK in "${UNITS[@]}"; do
       ;;
     status)
       # shellcheck disable=2086
+      # Intentional word splitting: $CMD is a single word set by this script.
       SYSTEMD_COLORS=1 systemctl "$MANAGER" $CMD --no-pager "${ARGS[@]}" -- "$UNIT"
       ;;
     cat | show)
@@ -657,6 +640,7 @@ for PICK in "${UNITS[@]}"; do
       ;;
     *)
       # shellcheck disable=2086
+      # Intentional word splitting: $CMD is a single word set by this script.
       _sysz_systemctl "$MANAGER" $CMD "${ARGS[@]}" -- "$UNIT" || CODE=$?
       SYSTEMD_COLORS=1 systemctl "$MANAGER" status --no-pager -- "$UNIT"
       if [[ ${#UNITS[@]} -eq 1 ]]; then
