@@ -2,13 +2,13 @@
 
 ## Current State
 
-**Version:** 2.1.0 (released)  
+**Version:** 2.2.0+ (main)  
 **Branch:** `main`  
 **Open PRs:** none
 
-## What Was Done (v2.1.0)
+## What Was Done
 
-### Fase 1 — Filtering Tiers
+### v2.1.0 — Filtering Tiers
 - `--type TYPE` passthrough to list-units/list-unit-files
 - Static denylist (14 patterns: *.device, *.slice, session-*.scope, systemd-fsck@*, etc.)
 - `--all` / `-a` to disable filters
@@ -18,25 +18,40 @@
 - `ctrl-e` toggle in fzf between mine/all modes
 - Dynamic prompt: `Units [etc]:` vs `Units:`
 
-### Rebrand Completion
-- Binary renamed from `sysz` to `sysz-ng`
-- Makefile, install.sh, PKGBUILD updated
-- Tests updated to reference `sysz-ng`
-- Shell completions renamed
-- README.sh and README.md regenerated
-- Release workflow and CONTRIBUTING.md updated
-
-## Pending (Next Steps)
-
-### Fase 2 — Tier 3 Properties (Lazy D-Bus)
+### v2.2.0 — Curated Mode (Tier 3)
 - `--curated` flag using `systemctl show` properties:
   - `RefuseManualStart`, `RefuseManualStop`
   - `Perpetual=yes`
   - `Transient=yes`
   - `SourcePath` filled (generated units)
 - Lazy evaluation: only triggers with `--curated`
-- Result enters same cache as Tier 2
 - `ctrl-a` toggle in fzf (curated vs all)
+
+### UI Improvements
+- Colorized keybindings help (cyan keys, bold headers)
+- Visual markers in fzf: `▸` pointer/multi-select, `─` separator
+- Inline info for cleaner layout
+- Header in commands picker
+- Prompt with badges showing active filters
+
+### Enhanced Header
+- Contextual two-line header (terminals >= 80 chars):
+  - Line 1: `[user+system] @hostname M:machine`
+  - Line 2: all keybindings
+- `--header-first` keeps header fixed at top
+- Preview layout adapts to terminal width:
+  - `< 80 cols`: `bottom:40%` (no log truncation)
+  - `80-119 cols`: `right:40%`
+  - `>= 120 cols`: `right:50%`
+
+### Rebrand Completion
+- Binary renamed from `sysz` to `sysz-ng`
+- Makefile, install.sh, PKGBUILD updated
+- Tests updated to reference `sysz-ng`
+- Shell completions renamed
+- README.sh and README.md regenerated
+
+## Pending (Next Steps)
 
 ### Fase 3 — Config and Profiles
 - Config file: `$XDG_CONFIG_HOME/sysz/filter.conf`
@@ -53,6 +68,6 @@
 - `--type` completion in bash/zsh
 
 ## Tests
-- 54/54 bats tests passing
+- 57/57 bats tests passing
 - shellcheck clean
 - shfmt clean

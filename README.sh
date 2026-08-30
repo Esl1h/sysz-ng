@@ -46,6 +46,9 @@ VERSION: $(cat VERSION)
 - **Curated mode** (\`--curated\`) hides units that are effectively
   immutable: \`RefuseManualStart/Stop\`, \`Perpetual\`, \`Transient\`, or
   generated from \`SourcePath\`. Use \`ctrl-a\` inside the picker to toggle.
+- **Recent-first sort** (\`--recent\`) orders units by
+  \`StateChangeTimestampMonotonic\`, so the units that changed state most
+  recently appear first. Use \`ctrl-t\` inside the picker to toggle.
 - Takes several units, states or commands at once with \`TAB\`.
 - Calls \`sudo\` (or \`SYSZ_SUDO\`) only when the unit actually requires it.
 - Short aliases for the systemctl commands, to type less.
@@ -87,7 +90,7 @@ ${BLOCK}sh
 SYSZ_INSTALL_DIR=/usr/local/bin curl -fsSL .../install.sh | sudo -E bash
 
 # install a particular tag or branch
-SYSZ_REF=2.2.0 curl -fsSL .../install.sh | bash
+SYSZ_REF=2.3.0 curl -fsSL .../install.sh | bash
 ${BLOCK}
 
 Piping a script into a shell is worth being careful about. This one is

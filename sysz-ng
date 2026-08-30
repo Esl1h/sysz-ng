@@ -7,7 +7,7 @@ shopt -s extglob
 export SHELL=bash
 
 PROG=$(basename "$0")
-SYSZ_VERSION=2.2.0
+SYSZ_VERSION=2.3.0
 SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
 SYSZ_SUDO=${SYSZ_SUDO:-sudo}
 declare -a STATES
@@ -137,6 +137,8 @@ _sysz_header() {
 
 export -f _sysz_header
 
+# shellcheck disable=SC2288
+# False positive: shellcheck misinterprets printf multi-line continuations.
 _sysz_keys() {
   local k=$'\033[1;36m' d=$'\033[0m' h=$'\033[1m'
   printf '%s\n' \
@@ -148,6 +150,7 @@ _sysz_keys() {
     "  ${k}ctrl-r${d}        Run daemon-reload. Selection is reset." \
     "  ${k}ctrl-e${d}        Toggle admin-owned (etc) vs all units." \
     "  ${k}ctrl-a${d}        Toggle curated mode (hide immutable units)." \
+    "  ${k}ctrl-t${d}        Toggle recent-first sort (by state-change time)." \
     "  ${k}ctrl-p${d}        History previous." \
     "  ${k}ctrl-n${d}        History next." \
     "  ${k}?${d}             Show/hide this help." \
@@ -169,6 +172,7 @@ OPTS:
   --failed                 Only show failed units (alias for -s failed)
   --mine, --etc            Only show units with fragments under /etc
   --curated                Only show manageable units (hide immutable)
+  --recent                 Sort by most recent state change first
   -H HOST, --host HOST     Connect to remote host
   -M MACHINE, --machine MACHINE  Operate on local container
   --no-cache               Skip list-unit-files cache
@@ -394,6 +398,31 @@ _sysz_curated() {
     '
 }
 
+# Sort units by StateChangeTimestampMonotonic descending (most recent first).
+# Input: one unit name per line. Output: same names, reordered.
+_sysz_recent_sort() {
+  local -a units=()
+  while IFS= read -r u; do
+    [[ -n $u ]] && units+=("$u")
+  done
+  ((${#units[@]} == 0)) && return
+  systemctl "${SYSZ_REMOTE[@]}" show \
+    --property=Id,StateChangeTimestampMonotonic \
+    -- "${units[@]}" |
+    awk -F= '
+      BEGIN { RS=""; FS="\n" }
+      {
+        id=""; ts=0
+        for (i=1; i<=NF; i++) {
+          if ($i ~ /^Id=/) id=substr($i, 4)
+          if ($i ~ /^StateChangeTimestampMonotonic=/) ts=substr($i, 32)+0
+        }
+        if (id != "") printf "%020d %s\n", ts, id
+      }
+    ' |
+    sort -rn | cut -d' ' -f2-
+}
+
 _sysz_cache_dir() {
   echo "${XDG_CACHE_HOME:-$HOME/.cache}/sysz"
 }
@@ -504,6 +533,7 @@ _sysz_prompt() {
   local badg=$'\033[1;33m' off=$'\033[0m'
   local badges=''
   [[ $CURATED = true ]] && badges+="${badg}[curated]${off} "
+  [[ $RECENT = true ]] && badges+="${badg}[recent]${off} "
   [[ $FILTER_MODE = mine ]] && badges+="${badg}[etc]${off} "
   [[ $NO_DENY = true ]] && badges+="${badg}[all]${off} "
   printf '%sUnits: ' "$badges"
@@ -576,6 +606,10 @@ while [[ -n $1 ]]; do
     ;;
   --curated)
     CURATED=true
+    shift
+    ;;
+  --recent)
+    RECENT=true
     shift
     ;;
   -H | --host)
@@ -740,7 +774,7 @@ while :; do
       _sysz_fzf \
         --multi \
         --ansi \
-        --expect=ctrl-r,ctrl-s,ctrl-e,ctrl-a \
+        --expect=ctrl-r,ctrl-s,ctrl-e,ctrl-a,ctrl-t \
         --history="$SYSZ_HISTORY" \
         --prompt="$(_sysz_prompt)" \
         --header-first \
@@ -755,6 +789,9 @@ while :; do
         --preview-window="$(_sysz_preview_layout "$(_sysz_term_width)")" |
       readarray -t PICKS
   else
+    _stream_tmp=$(mktemp)
+    # shellcheck disable=SC2064
+    trap "rm -f '$_stream_tmp'" EXIT
     {
       for MANAGER in "${MANAGERS[@]}"; do
         _sysz_stream loaded "$MANAGER" "--$MANAGER" "${TYPES[@]}"
@@ -762,23 +799,45 @@ while :; do
       done
     } |
       _sysz_filter_stream |
-      sort -bifu | cut -d' ' -f2- |
-      _sysz_fzf \
-        --multi \
-        --ansi \
-        --expect=ctrl-r,ctrl-s,ctrl-e,ctrl-a \
-        --history="$SYSZ_HISTORY" \
-        --prompt="$(_sysz_prompt)" \
-        --header-first \
-        --header="$(_sysz_header "$(_sysz_term_width)")" \
-        --info=inline \
-        --marker='▸ ' \
-        --pointer='▸ ' \
-        --separator='─' \
-        --bind "?:preview('${BASH_SOURCE[0]}' _sysz_keys)" \
-        --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] && echo 'change-prompt(CAT )+preview(${BASH_SOURCE[0]} _fzf_preview {} cat)' || echo 'change-prompt($(_sysz_prompt))+preview(${BASH_SOURCE[0]} _fzf_preview {})'" \
-        --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
-        --preview-window="$(_sysz_preview_layout "$(_sysz_term_width)")" |
+      sort -bifu | cut -d' ' -f2- >"$_stream_tmp"
+
+    if [[ $RECENT = true ]]; then
+      # Reorder by StateChangeTimestampMonotonic descending.
+      _sorted_tmp=$(mktemp)
+      # shellcheck disable=SC2064
+      trap "rm -f '$_sorted_tmp'" EXIT
+      while IFS= read -r _line; do
+        _unit=${_line##* }
+        _unit=${_unit//$'\033'\[*([0-9;])m/}
+        printf '%s\n' "$_unit"
+      done <"$_stream_tmp" | sort -u | _sysz_recent_sort >"$_sorted_tmp"
+      # Reorder the original output by the sorted list.
+      awk 'NR==FNR {order[$1]=NR; next} {
+        u=$0
+        gsub(/\033\[[0-9;]*m/, "", u)
+        u=u
+        sub(/^\[.*\] /, "", u)
+        if (u in order) printf "%08d %s\n", order[u], $0
+      }' "$_sorted_tmp" "$_stream_tmp" | sort | cut -d' ' -f2- >"${_stream_tmp}.sorted"
+      mv "${_stream_tmp}.sorted" "$_stream_tmp"
+    fi
+
+    <"$_stream_tmp" _sysz_fzf \
+      --multi \
+      --ansi \
+      --expect=ctrl-r,ctrl-s,ctrl-e,ctrl-a,ctrl-t \
+      --history="$SYSZ_HISTORY" \
+      --prompt="$(_sysz_prompt)" \
+      --header-first \
+      --header="$(_sysz_header "$(_sysz_term_width)")" \
+      --info=inline \
+      --marker='▸ ' \
+      --pointer='▸ ' \
+      --separator='─' \
+      --bind "?:preview('${BASH_SOURCE[0]}' _sysz_keys)" \
+      --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] && echo 'change-prompt(CAT )+preview(${BASH_SOURCE[0]} _fzf_preview {} cat)' || echo 'change-prompt($(_sysz_prompt))+preview(${BASH_SOURCE[0]} _fzf_preview {})'" \
+      --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
+      --preview-window="$(_sysz_preview_layout "$(_sysz_term_width)")" |
       readarray -t PICKS
   fi
 
@@ -813,6 +872,14 @@ while :; do
       CURATED=false
     else
       CURATED=true
+    fi
+    continue
+    ;;
+  ctrl-t)
+    if [[ $RECENT = true ]]; then
+      RECENT=false
+    else
+      RECENT=true
     fi
     continue
     ;;
