@@ -143,27 +143,57 @@ EOF
 # The first version of the header was cut off by fzf, which dropped the
 # part that mattered. Whatever is returned has to fit.
 @test "_sysz_header never returns more than it was given room for" {
-  local w out
+  local w out line
   for w in 8 12 16 20 25 26 30 35 43 48 49 55 80 200; do
     out=$(_sysz_header "$w")
-    [ "${#out}" -le "$w" ] || {
-      echo "width $w got ${#out} chars: $out"
-      return 1
-    }
+    # Header may span multiple lines; each line must fit.
+    while IFS= read -r line; do
+      [ "${#line}" -le "$w" ] || {
+        echo "width $w got line ${#line} chars: $line"
+        return 1
+      }
+    done <<<"$out"
   done
 }
 
 @test "the header fits at every terminal width the layout picks" {
-  local width pct avail out
+  local width pct avail out line
   for width in 60 70 80 100 120 140 160 200 250; do
     pct=$(_sysz_preview_pct "$width")
     avail=$(_sysz_header_width "$width" "$pct")
     out=$(_sysz_header "$avail")
-    [ "${#out}" -le "$avail" ] || {
-      echo "terminal $width, preview $pct%, room $avail, header ${#out}: $out"
-      return 1
-    }
+    while IFS= read -r line; do
+      [ "${#line}" -le "$avail" ] || {
+        echo "terminal $width, preview $pct%, room $avail, line ${#line}: $line"
+        return 1
+      }
+    done <<<"$out"
   done
+}
+
+@test "_sysz_header_context shows managers and remote host" {
+  # shellcheck disable=SC2030
+  export MANAGERS=(user system)
+  # shellcheck disable=SC2030
+  export SYSZ_REMOTE=("--host=server1")
+  [[ $(_sysz_header_context) == *'user+system'* ]]
+  [[ $(_sysz_header_context) == *'@server1'* ]]
+}
+
+@test "_sysz_header_context shows single manager" {
+  # shellcheck disable=SC2030,SC2031
+  export MANAGERS=(system)
+  # shellcheck disable=SC2030,SC2031
+  export SYSZ_REMOTE=()
+  [ "$(_sysz_header_context)" = '[system only]' ]
+}
+
+@test "_sysz_header_context shows machine name" {
+  # shellcheck disable=SC2031
+  export MANAGERS=(user)
+  # shellcheck disable=SC2031
+  export SYSZ_REMOTE=("--machine=foo")
+  [[ $(_sysz_header_context) == *'M:foo'* ]]
 }
 
 @test "_sysz_sort handles units without an extension" {

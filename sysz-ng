@@ -61,12 +61,66 @@ for _entry in "${CMD_ALIASES[@]}"; do
   done
 done
 
+# Terminal dimensions
+_sysz_term_width() {
+  local cols
+  cols=$(tput cols 2>/dev/null) || cols=$(stty size 2>/dev/null | cut -d' ' -f2) || cols=80
+  printf '%s' "$cols"
+}
+
+_sysz_preview_layout() {
+  local width=$1
+  if ((width < 80)); then
+    printf 'bottom:40%%'
+  elif ((width < 120)); then
+    printf 'right:40%%'
+  else
+    printf 'right:50%%'
+  fi
+}
+
+# Build the context line for the header.
+# Shows: managers, remote host, active filters.
+_sysz_header_context() {
+  local ctx=''
+  if ((${#MANAGERS[@]} == 1)); then
+    ctx="[${MANAGERS[0]} only]"
+  else
+    ctx='[user+system]'
+  fi
+  if ((${#SYSZ_REMOTE[@]} > 0)); then
+    local host
+    for arg in "${SYSZ_REMOTE[@]}"; do
+      if [[ $arg == --host=* ]]; then
+        host=${arg#--host=}
+        ctx+=" @${host}"
+      elif [[ $arg == --machine=* ]]; then
+        host=${arg#--machine=}
+        ctx+=" M:${host}"
+      fi
+    done
+  fi
+  printf '%s' "$ctx"
+}
+
 _sysz_header() {
   local avail=$1
-  local full='esc quit  tab select  ^v cat  ^s state  ^r reload  ^e etc  ^a curated  ? help'
+  local ctx
+  ctx=$(_sysz_header_context)
+  local full="esc quit  tab select  ^v cat  ^s state  ^r reload  ^e etc  ^a curated  ? help"
   local long='esc quit  tab select  ^v cat  ^s state  ^e etc  ^a curated  ? help'
   local medium='esc quit  ^s state  ^e etc  ^a curated  ? help'
   local short='^s state  ^e etc  ? help'
+
+  # Two-line header when there is enough room.
+  # Width is the longest line, not the total including \n.
+  local ctx_len=${#ctx} full_len=${#full}
+  local max_len
+  ((ctx_len > full_len)) && max_len=$ctx_len || max_len=$full_len
+  if ((avail >= max_len)); then
+    printf '%s\n%s' "$ctx" "$full"
+    return
+  fi
 
   if ((avail >= ${#full})); then
     printf '%s' "$full"
@@ -614,6 +668,8 @@ _sysz_daemon_reload() {
     _sysz_fzf \
       --multi \
       --no-info \
+      --header-first \
+      --header="esc quit  tab select" \
       --prompt="Reload: " |
     readarray -t RELOADS || exit $?
 
@@ -630,6 +686,8 @@ _sysz_states() {
     grep -v '^$' |
     _sysz_fzf \
       --multi \
+      --header-first \
+      --header="esc quit  tab select" \
       --prompt="States: " |
     readarray -t PICKED_STATES || exit $?
 
@@ -685,7 +743,8 @@ while :; do
         --expect=ctrl-r,ctrl-s,ctrl-e,ctrl-a \
         --history="$SYSZ_HISTORY" \
         --prompt="$(_sysz_prompt)" \
-        --header="$(_sysz_header 60)" \
+        --header-first \
+        --header="$(_sysz_header "$(_sysz_term_width)")" \
         --info=inline \
         --marker='▸ ' \
         --pointer='▸ ' \
@@ -693,7 +752,7 @@ while :; do
         --bind "?:preview('${BASH_SOURCE[0]}' _sysz_keys)" \
         --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] && echo 'change-prompt(CAT )+preview(${BASH_SOURCE[0]} _fzf_preview {} cat)' || echo 'change-prompt($(_sysz_prompt))+preview(${BASH_SOURCE[0]} _fzf_preview {})'" \
         --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
-        --preview-window=right:50% |
+        --preview-window="$(_sysz_preview_layout "$(_sysz_term_width)")" |
       readarray -t PICKS
   else
     {
@@ -710,7 +769,8 @@ while :; do
         --expect=ctrl-r,ctrl-s,ctrl-e,ctrl-a \
         --history="$SYSZ_HISTORY" \
         --prompt="$(_sysz_prompt)" \
-        --header="$(_sysz_header 60)" \
+        --header-first \
+        --header="$(_sysz_header "$(_sysz_term_width)")" \
         --info=inline \
         --marker='▸ ' \
         --pointer='▸ ' \
@@ -718,7 +778,7 @@ while :; do
         --bind "?:preview('${BASH_SOURCE[0]}' _sysz_keys)" \
         --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] && echo 'change-prompt(CAT )+preview(${BASH_SOURCE[0]} _fzf_preview {} cat)' || echo 'change-prompt($(_sysz_prompt))+preview(${BASH_SOURCE[0]} _fzf_preview {})'" \
         --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
-        --preview-window=right:50% |
+        --preview-window="$(_sysz_preview_layout "$(_sysz_term_width)")" |
       readarray -t PICKS
   fi
 
@@ -809,6 +869,7 @@ else
   _sysz_fzf \
     --multi \
     --ansi \
+    --header-first \
     --prompt="Commands: " \
     --header="esc quit  tab select  ? help" \
     --info=inline \
