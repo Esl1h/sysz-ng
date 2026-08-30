@@ -124,9 +124,9 @@ EOF
 }
 
 @test "_sysz_header shows more the more room there is" {
-  [[ $(_sysz_header 60) == *'tab select'* ]]
-  [[ $(_sysz_header 30) == 'esc quit'* ]]
-  [[ $(_sysz_header 20) == '^s state'* ]]
+  [[ $(_sysz_header 70) == *'tab select'* ]]
+  [[ $(_sysz_header 50) == 'esc quit'* ]]
+  [[ $(_sysz_header 40) == '^s state'* ]]
   [ "$(_sysz_header 8)" = '? help' ]
 }
 

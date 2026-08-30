@@ -62,12 +62,15 @@ for _entry in "${CMD_ALIASES[@]}"; do
 done
 
 _sysz_header() {
-  local avail=$1 long medium short
-  long='esc quit  tab select  ^s state  ^r reload  ? help'
-  medium='esc quit  ^s state  ? help'
-  short='^s state  ? help'
+  local avail=$1
+  local full='esc quit  tab select  ^v cat  ^s state  ^r reload  ^e etc  ^a curated  ? help'
+  local long='esc quit  tab select  ^v cat  ^s state  ^e etc  ^a curated  ? help'
+  local medium='esc quit  ^s state  ^e etc  ^a curated  ? help'
+  local short='^s state  ^e etc  ? help'
 
-  if ((avail >= ${#long})); then
+  if ((avail >= ${#full})); then
+    printf '%s' "$full"
+  elif ((avail >= ${#long})); then
     printf '%s' "$long"
   elif ((avail >= ${#medium})); then
     printf '%s' "$medium"
@@ -81,19 +84,20 @@ _sysz_header() {
 export -f _sysz_header
 
 _sysz_keys() {
+  local k=$'\033[1;36m' d=$'\033[0m' h=$'\033[1m'
   printf '%s\n' \
-    'Keybindings:' \
-    '  type          Filter the list. Space separates terms.' \
-    '  TAB           Toggle selection.' \
-    "  ctrl-v        Toggle 'cat' the unit in the preview window." \
-    '  ctrl-s        Select states to match. Selection is reset.' \
-    '  ctrl-r        Run daemon-reload. Selection is reset.' \
-    '  ctrl-e        Toggle admin-owned (etc) vs all units.' \
-    '  ctrl-a        Toggle curated mode (hide immutable units).' \
-    '  ctrl-p        History previous.' \
-    '  ctrl-n        History next.' \
-    '  ?             Show keybindings.' \
-    '  esc, ctrl-c   Quit.'
+    "${h}Keybindings:${d}" \
+    "  ${k}type${d}          Filter the list. Space separates terms." \
+    "  ${k}TAB${d}           Toggle selection." \
+    "  ${k}ctrl-v${d}        Toggle 'cat' the unit in the preview window." \
+    "  ${k}ctrl-s${d}        Select states to match. Selection is reset." \
+    "  ${k}ctrl-r${d}        Run daemon-reload. Selection is reset." \
+    "  ${k}ctrl-e${d}        Toggle admin-owned (etc) vs all units." \
+    "  ${k}ctrl-a${d}        Toggle curated mode (hide immutable units)." \
+    "  ${k}ctrl-p${d}        History previous." \
+    "  ${k}ctrl-n${d}        History next." \
+    "  ${k}?${d}             Show/hide this help." \
+    "  ${k}esc${d}, ${k}ctrl-c${d}   Quit."
 }
 
 _sysz_help() {
@@ -443,15 +447,12 @@ _sysz_filter_stream() {
 }
 
 _sysz_prompt() {
-  if [[ $CURATED = true ]]; then
-    printf 'Units [curated]: '
-    return
-  fi
-  case $FILTER_MODE in
-  mine) printf 'Units [etc]: ' ;;
-  all) printf 'Units: ' ;;
-  *) printf 'Units: ' ;;
-  esac
+  local badg=$'\033[1;33m' off=$'\033[0m'
+  local badges=''
+  [[ $CURATED = true ]] && badges+="${badg}[curated]${off} "
+  [[ $FILTER_MODE = mine ]] && badges+="${badg}[etc]${off} "
+  [[ $NO_DENY = true ]] && badges+="${badg}[all]${off} "
+  printf '%sUnits: ' "$badges"
 }
 
 # Sourcing exposes functions without running the tool or requiring fzf.
@@ -685,6 +686,10 @@ while :; do
         --history="$SYSZ_HISTORY" \
         --prompt="$(_sysz_prompt)" \
         --header="$(_sysz_header 60)" \
+        --info=inline \
+        --marker='▸ ' \
+        --pointer='▸ ' \
+        --separator='─' \
         --bind "?:preview('${BASH_SOURCE[0]}' _sysz_keys)" \
         --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] && echo 'change-prompt(CAT )+preview(${BASH_SOURCE[0]} _fzf_preview {} cat)' || echo 'change-prompt($(_sysz_prompt))+preview(${BASH_SOURCE[0]} _fzf_preview {})'" \
         --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
@@ -706,6 +711,10 @@ while :; do
         --history="$SYSZ_HISTORY" \
         --prompt="$(_sysz_prompt)" \
         --header="$(_sysz_header 60)" \
+        --info=inline \
+        --marker='▸ ' \
+        --pointer='▸ ' \
+        --separator='─' \
         --bind "?:preview('${BASH_SOURCE[0]}' _sysz_keys)" \
         --bind "ctrl-v:transform:[[ ! \$FZF_PROMPT =~ CAT ]] && echo 'change-prompt(CAT )+preview(${BASH_SOURCE[0]} _fzf_preview {} cat)' || echo 'change-prompt($(_sysz_prompt))+preview(${BASH_SOURCE[0]} _fzf_preview {})'" \
         --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
@@ -800,8 +809,12 @@ else
   _sysz_fzf \
     --multi \
     --ansi \
-    --no-info \
     --prompt="Commands: " \
+    --header="esc quit  tab select  ? help" \
+    --info=inline \
+    --marker='▸ ' \
+    --pointer='▸ ' \
+    --separator='─' \
     --preview="$PREVIEW_CMD" \
     --preview-window=80% < <(
       for row in "${CMDS_TABLE[@]}"; do
