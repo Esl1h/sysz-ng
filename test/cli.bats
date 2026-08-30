@@ -87,3 +87,8 @@ setup() {
   run "$SYSZ" --state=failed --user
   [[ $output != *'Invalid state'* ]]
 }
+
+@test "--recent is accepted by the parser" {
+  run "$SYSZ" --recent --user
+  [[ $output != *'Unknown option'* ]]
+}

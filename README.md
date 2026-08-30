@@ -2,7 +2,7 @@
 
 A [fzf](https://github.com/junegunn/fzf) terminal UI for systemctl
 
-VERSION: 2.2.0
+VERSION: 2.3.0
 
 > **Hard fork.** This project was originally forked from
 > [joehillen/sysz](https://github.com/joehillen/sysz) but no longer
@@ -37,6 +37,9 @@ VERSION: 2.2.0
 - **Curated mode** (`--curated`) hides units that are effectively
   immutable: `RefuseManualStart/Stop`, `Perpetual`, `Transient`, or
   generated from `SourcePath`. Use `ctrl-a` inside the picker to toggle.
+- **Recent-first sort** (`--recent`) orders units by
+  `StateChangeTimestampMonotonic`, so the units that changed state most
+  recently appear first. Use `ctrl-t` inside the picker to toggle.
 - Takes several units, states or commands at once with `TAB`.
 - Calls `sudo` (or `SYSZ_SUDO`) only when the unit actually requires it.
 - Short aliases for the systemctl commands, to type less.
@@ -78,7 +81,7 @@ It reads a few variables:
 SYSZ_INSTALL_DIR=/usr/local/bin curl -fsSL .../install.sh | sudo -E bash
 
 # install a particular tag or branch
-SYSZ_REF=2.2.0 curl -fsSL .../install.sh | bash
+SYSZ_REF=2.3.0 curl -fsSL .../install.sh | bash
 ```
 
 Piping a script into a shell is worth being careful about. This one is
@@ -122,6 +125,7 @@ OPTS:
   --failed                 Only show failed units (alias for -s failed)
   --mine, --etc            Only show units with fragments under /etc
   --curated                Only show manageable units (hide immutable)
+  --recent                 Sort by most recent state change first
   -H HOST, --host HOST     Connect to remote host
   -M MACHINE, --machine MACHINE  Operate on local container
   --no-cache               Skip list-unit-files cache
